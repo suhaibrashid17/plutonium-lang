@@ -40,14 +40,14 @@ enum OPCODE
     ASSIGNINDEX = 36,
     IMPORT = 37,//imports a native module (a shared library)
     BREAK = 38,
-    CALLFORVAL = 39,//calls a builtin function and keeps it's return on the stack
+    CALLFORVAL = 39,//calls a builtin function and keeps it's return value on the stack
     INC_GLOBAL = 40,//increments a global variable
     CONT = 41,
     LOAD_GLOBAL = 42,//loads a global variable
     MEMB = 43,//member operator '.'
-    LOAD_NAME = 44,//LOAD_NAME<index> loads a name at certain index in the name table onto the stack
+    JMPIFFALSENOPOP = 44,//
     ASSIGNMEMB = 45,//
-    BUILD_CLASS = 46,//builds a class (not object!)
+    BUILD_CLASS = 46,//builds a class
     ASSIGN_GLOBAL = 47,//assigns a global variable
     LOAD_FUNC = 48,//builds a user defined function and loads it onto the stack
     OP_EXIT = 49,

@@ -121,6 +121,7 @@ FileObject *allocFileObject();
 Module *allocModule();
 NativeFunction *allocNativeFun();
 FunObject* allocFunObject();
+bool callObject(PltObject*,PltObject*,int,PltObject*);
 extern bool REPL_MODE;
 void REPL();
 class VM
@@ -129,25 +130,6 @@ private:
   vector<uint8_t *> callstack;
   uint8_t* program = NULL;
   uint32_t program_size;
-  // Some registers
-  int32_t i1;
-  int32_t i2;
-  int32_t i3;
-  int64_t l1;
-  double f1;
-  uint8_t m1;
-  PltObject p1;
-  PltObject p2;
-  PltObject p3;
-  PltObject p4;
-  string s1;
-  string s2;
-  char c1;
-  char c2;
-  PltList pl1;      // plutonium list 1
-  PltList *pl_ptr1; // plutonium list pointer 1
-  Dictionary pd1;
-  Dictionary *pd_ptr1;
   uint8_t *k;
   vector<size_t> tryStackCleanup;
   vector<int32_t> frames = {0}; // stores starting stack indexes of all stack frames
@@ -165,7 +147,6 @@ private:
   
   vector<BuiltinFunc> builtin; // addresses of builtin native functions
   // referenced in bytecode
-  string magicName = ".destroy";
   size_t GC_THRESHHOLD;
   std::unordered_map<size_t, ByteSrc> *LineNumberTable;
   vector<string> *files;
@@ -174,13 +155,14 @@ private:
   vector<PltObject> STACK;
 public:
   friend class Compiler;
+  friend bool callObject(PltObject*,PltObject*,int,PltObject*);
   std::unordered_map<void *, MemInfo> memory;
   size_t allocated = 0;
   size_t GC_Cycles = 0;
   vector<string> strings; // string constants used in bytecode
   PltObject *constants = NULL;
   int32_t total_constants = 0; // total constants stored in the array constants
-  
+  apiFuncions api;
   void load(vector<uint8_t> b, std::unordered_map<size_t, ByteSrc> *ltable, vector<string> *a, vector<string> *c)
   {
     if (program)
@@ -195,9 +177,25 @@ public:
     LineNumberTable = ltable;
     files = a;
     sources = c;
+    //initialise api function for interpreter as well
+    //in case a builtin function wants to use it
+    api.a1 = &allocList;
+    api.a2 = &allocDict;
+    api.a3 = &allocString;
+    api.a4 = &allocErrObject;
+    api.a5 = &allocFileObject;
+    api.a6 = &allocKlass;
+    api.a7 = &allocKlassInstance;
+    api.a8 = &allocNativeFun;
+    api.a9 = &allocModule;
+    api.a10 = &allocByteArray;
+    api.a11 = &callObject;
+    api_setup(&api);//
+    srand(time(0));
   }
   void spitErr(ErrCode e, string msg) // used to show a runtime error
   {
+    PltObject p1;
     if (except_targ.size() != 0)
     {
       size_t T = STACK.size() - tryStackCleanup.back();
@@ -206,7 +204,7 @@ public:
       E->code = (int32_t)e;
       E->des = msg;
       p1.type = PLT_ERROBJ;
-      p1.ptr = (void *)E;
+      p1.ptr = (void*)E;
       STACK.push_back(p1);
       T = frames.size() - tryLimitCleanup.back();
       frames.erase(frames.end() - T, frames.end());
@@ -447,7 +445,6 @@ public:
           }
         }
       }
-      
     } // end while loop
   }
   void mark()
@@ -482,12 +479,14 @@ public:
         PltObject dummy;
         dummy.type = PLT_OBJ;
         dummy.ptr = e;
-        if (obj->members.find(".destroy") != obj->members.end())
+        if (obj->members.find("__del__") != obj->members.end())
         {
-          NativeFunction *p = (NativeFunction *)obj->members[".destroy"].ptr;
-          PltObject rr;
-          NativeFunPtr f = (NativeFunPtr)p->addr;
-          f(&dummy, 1, &rr);
+          PltObject p1 = obj->members["__del__"];
+          if(p1.type == PLT_NATIVE_FUNC || p1.type == PLT_FUNC)
+          {
+            PltObject rr;
+            callObject(&p1,&dummy,1,&rr);
+          }
         }
       }
 
@@ -566,6 +565,8 @@ public:
   {
     KlassInstance *obj = (KlassInstance *)A.ptr;
     auto it = obj->members.find(meth);
+    PltObject p3;
+    string s1;
     if (it != obj->members.end())
     {
       p3 = it->second;
@@ -622,19 +623,25 @@ public:
   }
   void interpret(size_t offset = 0, bool panic = true) // panic if stack is not empty when finished
   {
-    allocFuncions allocators;
-    allocators.a1 = &allocList;
-    allocators.a2 = &allocDict;
-    allocators.a3 = &allocString;
-    allocators.a4 = &allocErrObject;
-    allocators.a5 = &allocFileObject;
-    allocators.a6 = &allocKlass;
-    allocators.a7 = &allocKlassInstance;
-    allocators.a8 = &allocNativeFun;
-    allocators.a9 = &allocModule;
-
-    api_setup(&allocators);//for native modules
-    srand(time(0));
+    // Some registers
+    int32_t i1;
+    int32_t i2;
+    int32_t i3;
+    int64_t l1;
+    double f1;
+    uint8_t m1;
+    PltObject p1;
+    PltObject p2;
+    PltObject p3;
+    PltObject p4;
+    string s1;
+    string s2;
+    char c1;
+    char c2;
+    PltList pl1;      // plutonium list 1
+    PltList *pl_ptr1; // plutonium list pointer 1
+    Dictionary pd1;
+    Dictionary *pd_ptr1;
     k = program + offset;
 
     uint8_t inst;
@@ -982,14 +989,14 @@ public:
             continue;
           }
         }
-        else if (p1.type == PLT_LIST || p1.type == PLT_DICT)
+        else if (p1.type == PLT_LIST || p1.type == PLT_DICT || p1.type == PLT_BYTEARR)
         {
-          //pl1.insert(pl1.begin(), p1);
           PltObject callmethod(string, PltObject *, int32_t);
           p3 = callmethod(method_name, &STACK[STACK.size()-i2-1], i2 + 1);
           if (p3.type == PLT_ERROBJ)
           {
-            spitErr((ErrCode)p3.i, *(string *)p3.ptr);
+            ErrObject* E = (ErrObject*)p3.ptr;
+            spitErr((ErrCode)E->code, *(string *)p3.ptr);
             continue;
           }
           STACK.erase(STACK.end()-i2-1,STACK.end());
@@ -1213,11 +1220,11 @@ public:
         k += 3;
         string name = strings[i1];
         typedef void (*mfunc)(PltObject *);
-        typedef void (*api)(allocFuncions *);
+        typedef void (*apiFun)(apiFuncions *);
         #ifdef BUILD_FOR_WINDOWS
           name = "C:\\plutonium\\modules\\" + name + ".dll";
           HINSTANCE module = LoadLibraryA(name.c_str());
-          api a = (api)GetProcAddress(module, "api_setup");
+          apiFun a = (apiFun)GetProcAddress(module, "api_setup");
           mfunc f = (mfunc)GetProcAddress(module, "init");
           if (!module)
           {
@@ -1234,7 +1241,7 @@ public:
             continue;
           }
           mfunc f = (mfunc)dlsym(module, "init");
-          api a = (api)dlsym(module, "api_setup");
+          apiFun a = (apiFun)dlsym(module, "api_setup");
         #endif
         if (!f)
         {
@@ -1246,7 +1253,7 @@ public:
           spitErr(IMPORT_ERROR, "Error api_setup() function not found in the module");
           continue;
         }
-        a(&allocators);
+        a(&api);
         PltObject Q;
         f(&Q);
         if (Q.type != PLT_MODULE)
@@ -1261,7 +1268,7 @@ public:
       }
       case RETURN:
       {
-        k = callstack[callstack.size() - 1] - 1;
+        k = callstack[callstack.size() - 1];
         callstack.pop_back();
         executing.pop_back();
         PltObject val = STACK[STACK.size() - 1];
@@ -1271,7 +1278,9 @@ public:
         }
         frames.pop_back();
         STACK.push_back(val);
-        break;
+        if(!k)
+          return;//return from interpret function
+        continue;
       }
       case YIELD:
       {
@@ -1635,7 +1644,7 @@ public:
           string *p = allocString();
 
           *p = *(string *)p1.ptr + *(string *)p2.ptr;
-          p3 = PltObjectFromStringPtr(p);
+          p3 = PObjFromStrPtr(p);
           STACK.push_back(p3);
           DoThreshholdBusiness();
         }
@@ -2029,7 +2038,7 @@ public:
           PltObject a;
           string *p = allocString();
           *p += c;
-          a = PltObjectFromStringPtr(p);
+          a = PObjFromStrPtr(p);
           STACK.push_back(a);
           DoThreshholdBusiness();
         }
@@ -2269,7 +2278,7 @@ public:
           {
             string *p = allocString();
             *p = E->des;
-            p1 = PltObjectFromStringPtr(p);
+            p1 = PObjFromStrPtr(p);
           }
           else if (mname == "name")
           {
@@ -2306,8 +2315,6 @@ public:
           KlassInstance *ptr = (KlassInstance *)a.ptr;
           if (ptr->members.find(mname) == ptr->members.end())
           {
-            if (a.type == PLT_OBJ)
-            {
               if (ptr->privateMembers.find(mname) != ptr->privateMembers.end())
               {
                 FunObject *A = executing.back();
@@ -2330,19 +2337,44 @@ public:
                 spitErr(NAME_ERROR, "Error object has no member named " + mname);
                 continue;
               }
-            }
-            else
-            {
-              spitErr(NAME_ERROR, "Error object has no member named " + mname);
-              continue;
-            }
+          }
+          PltObject ret = ptr->members[mname];
+          STACK.push_back(ret);
+        }
+        else if(a.type == PLT_CLASS)
+        {
+          Klass *ptr = (Klass *)a.ptr;
+          if (ptr->members.find(mname) == ptr->members.end())
+          {
+              if (ptr->privateMembers.find(mname) != ptr->privateMembers.end())
+              {
+                FunObject *A = executing.back();
+                if (A == NULL)
+                {
+                  spitErr(ACCESS_ERROR, "Error cannot access private member " + mname + " of class " + ptr->name + "!");
+                  continue;
+                }
+                if (ptr != A->klass)
+                {
+                  spitErr(ACCESS_ERROR, "Error cannot access private member " + mname + " of class " + ptr->name + "!");
+                  continue;
+                }
+                STACK.push_back(ptr->privateMembers[mname]);
+                k += 1;
+                continue;
+              }
+              else
+              {
+                spitErr(NAME_ERROR, "Error class has no member named " + mname);
+                continue;
+              }
           }
           PltObject ret = ptr->members[mname];
           STACK.push_back(ret);
         }
         else
         {
-          spitErr(TYPE_ERROR, "Error member operator only supported for objects!");
+          spitErr(TYPE_ERROR, "Error member operator unsupported for type "+fullform(a.type));
           continue;
         }
         break;
@@ -2548,14 +2580,17 @@ public:
         STACK.push_back(klass);
         break;
       }
-      case LOAD_NAME:
+      case JMPIFFALSENOPOP:
       {
         k += 1;
         memcpy(&i1, k, sizeof(int32_t));
         k += 3;
-        PltObject ret;
-        ret = PltObjectFromStringPtr(&(strings[i1])); // load as shallow copy
-        STACK.push_back(ret);
+        p1 = STACK[STACK.size() - 1];
+        if (p1.type == PLT_NIL || (p1.type == PLT_BOOL && p1.i == 0))
+        {
+          k = k + i1 + 1;
+          continue;
+        }
         break;
       }
       case LOAD_STR:
@@ -2630,7 +2665,7 @@ public:
             newSuper->klass = super->klass;
             newSuper->members = super->members;
             newSuper->privateMembers = super->privateMembers;
-            obj->members["super"] = PltObjectFromKlassInstance(newSuper);
+            obj->members["super"] = PObjFromKlassInst(newSuper);
           }
           obj->privateMembers = ((Klass *)fn.ptr)->privateMembers;
 
@@ -3194,53 +3229,56 @@ public:
   } // end function interpret
   ~VM()
   {
-
-    delete[] program;
-    delete[] constants;
-    STACK.clear();
-
     vector<void *> toerase;
+    //Call destructors of all objects in memory pool
     for (auto e : memory)
     {
       MemInfo m = e.second;
-
-      if (m.type == PLT_OBJ)
+      //call destructor for each object only once
+      if (m.type == PLT_OBJ && std::find(toerase.begin(),toerase.end(),e.first)==toerase.end())
       {
         KlassInstance *obj = (KlassInstance *)e.first;
         PltObject dummy;
         dummy.type = PLT_OBJ;
         dummy.ptr = e.first;
-        if (obj->members.find(".destroy") != obj->members.end())
+        PltObject rr;
+        if (obj->members.find("__del__") != obj->members.end())
         {
-          NativeFunction *ptr = (NativeFunction *)obj->members[".destroy"].ptr;
-          PltObject rr;
-          ptr->addr(&dummy, 1, &rr);
+          PltObject p1 = obj->members["__del__"];
+          if(p1.type == PLT_FUNC || p1.type==PLT_NATIVE_FUNC)
+          {
+            callObject(&p1,&dummy,1,&rr);
+          }
         }
-        delete (KlassInstance *)e.first;
         toerase.push_back(e.first);
       }
     }
     for (auto e : toerase)
+    {
       memory.erase(e);
+      delete (KlassInstance*)e;
+    }
+    delete[] program;
+    delete[] constants;
+    STACK.clear();
     mark(); // clearing the STACK and marking objects will result in all objects being deleted
     // which is what we want
     collectGarbage();
     typedef void (*unload)(void);
     for (auto e : moduleHandles)
     {
-#ifdef BUILD_FOR_WINDOWS
+      #ifdef BUILD_FOR_WINDOWS
       unload ufn = (unload)GetProcAddress(e, "unload");
       if (ufn)
         ufn();
       FreeLibrary(e);
-
-#endif
-#ifdef BUILD_FOR_LINUX
+      #endif
+      #ifdef BUILD_FOR_LINUX
       unload ufn = (unload)dlsym(e, "unload");
       if (ufn)
         ufn();
       dlclose(e);
-#endif
+      #endif
     }
   }
 } vm;
@@ -3443,5 +3481,51 @@ NativeFunction *allocNativeFun()
   vm.memory.emplace((void *)p, m);
   return p;
 }
-
+bool callObject(PltObject* obj,PltObject* args,int N,PltObject* rr)
+{
+  if(obj->type == PLT_FUNC)
+  {
+     FunObject* fn = (FunObject*)obj->ptr;
+     if ((size_t)N + fn->opt.size() < fn->args || (size_t)N > fn->args)
+     {
+      *rr = Plt_Err(ARGUMENT_ERROR, "Error function " + fn->name + " takes " + to_string(fn->args) + " arguments," + to_string(N) + " given!");
+      return false;
+     }
+     uint8_t* prev = vm.k;
+     vm.callstack.push_back(NULL);
+     vm.frames.push_back(vm.STACK.size());
+     vm.executing.push_back(fn);
+     for(int i=0;i<N;i++)
+       vm.STACK.push_back(args[i]);
+     for(size_t i = fn->opt.size() - (fn->args - N); i < fn->opt.size(); i++)
+       vm.STACK.push_back(fn->opt[i]);
+     vm.interpret(fn->i);
+     vm.k = prev;
+     *rr = vm.STACK.back();
+     vm.STACK.pop_back();
+     return true;
+  }
+  else if (obj->type == PLT_NATIVE_FUNC)
+  {
+    NativeFunction *A = (NativeFunction *)obj->ptr;
+    NativeFunPtr f = A->addr;
+    PltObject p4;
+    p4.type = PLT_NIL;
+    f(args, N, &p4);
+    if (p4.type == PLT_ERROBJ)
+    {
+      *rr = p4;
+      return false;
+    }
+    if (fullform(p4.type) == "Unknown" && p4.type != PLT_NIL)
+    {
+      *rr = Plt_Err(VALUE_ERROR, "Error invalid response from module!");
+      return false;
+    }
+    *rr = p4;
+    return true;
+  }
+  *rr = Plt_Err(TYPE_ERROR,"Object not callable!");
+  return false;
+}
 #endif

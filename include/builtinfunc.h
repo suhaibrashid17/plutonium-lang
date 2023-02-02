@@ -14,79 +14,6 @@ string fullform(char);
 #define PltArgs const vector<PltObject>&
 void PromoteType(PltObject&,char);
 
-PltList ListToByteList(PltList l)
-{
-   size_t k = 0;
-        PltObject A;
-        A.type = 'm';
-        PltList res;
-        while(k<l.size())
-        {
-            A = l[k];
-            if(A.type=='i')
-            {
-               FOO.x = A.i;
-               A.type = 'm';
-               int32_t j = 0;
-               while(j<4)
-               {
-                   A.i = (unsigned char)(FOO.bytes[j]);
-                   res.push_back(A);
-                   j+=1;
-               }
-            }
-            else if(A.type=='b')
-            {
-               A.type = 'm';
-               res.push_back(A);
-            }
-            else if(A.type=='l')
-            {
-               FOO1.l = A.l;
-               A.type = 'm';
-               int32_t j = 0;
-               while(j<8)
-               {
-                   A.i = (unsigned char)(FOO1.bytes[j]);
-
-                   res.push_back(A);
-                   j+=1;
-               }
-            }
-            else if(A.type=='s')
-            {
-                string s = *(string*)A.ptr;
-                size_t j = 0;
-                A.type = 'm';
-                while(j<s.length())
-                {
-                    A.i = (unsigned char)(s[j]);
-                    res.push_back(A);
-                    j+=1;
-                }
-                A.i = (unsigned char)(0);
-                res.push_back(A);
-            }
-            else if(A.type=='f')
-            {
-               FOO2.f = A.f;
-               A.type = 'm';
-               size_t j = 0;
-               while(j<4)
-               {
-                   A.i = (unsigned char)(FOO2.bytes[j]);
-                   res.push_back(A);
-                   j+=1;
-               }
-            }
-            else
-            {
-
-            }
-            k+=1;
-        }
-        return res;
-}
 
 bool validateArgTypes(string name,string e,PltObject* args,int32_t argc,PltObject& x)
 {
@@ -162,7 +89,7 @@ PltObject TOCHAR(PltObject* args,int32_t argc)
   PltObject ret;
   string* p = allocString();
   *p = s;
-  return PltObjectFromStringPtr(p);
+  return PObjFromStrPtr(p);
 }
 string unescape(string);
 void printDictionary(Dictionary* l,vector<void*> seen = {})
@@ -253,7 +180,7 @@ void printByteArray(vector<uint8_t>* arr)
     if(i!=len-1)
       printf(",");
   }
-  printf("])\n");
+  printf("])");
 }
 PltObject print(PltObject* args,int32_t argc)
 {
@@ -388,7 +315,7 @@ PltObject input(PltObject* args,int32_t argc)
     }
     string* p = allocString();
     *p = s;
-    return PltObjectFromStringPtr(p);
+    return PObjFromStrPtr(p);
 }
 PltObject TYPEOF(PltObject* args,int32_t argc)
 {
@@ -399,7 +326,7 @@ PltObject TYPEOF(PltObject* args,int32_t argc)
   string fullform(char);
   string* p = allocString();
   *p = fullform(args[0].type);
-  return PltObjectFromStringPtr(p);
+  return PObjFromStrPtr(p);
 }
 PltObject isInstanceOf(PltObject* args,int32_t argc)
 {
@@ -493,7 +420,7 @@ PltObject READ(PltObject* args,int32_t argc)
           break;
         (*p)+=ch;
     }
-    return PltObjectFromStringPtr(p);
+    return PObjFromStrPtr(p);
 }
 PltObject CLOSE(PltObject* args,int32_t argc)
 {
@@ -599,7 +526,7 @@ PltObject REVERSE(PltObject* args,int32_t argc)
         {
             *l+=data[k];
         }
-        return PltObjectFromStringPtr(l);
+        return PObjFromStrPtr(l);
     }
     PltList l;
     PltList currList = *(PltList*)q.ptr;
@@ -617,69 +544,50 @@ PltObject REVERSE(PltObject* args,int32_t argc)
 /////////
 PltObject BYTES(PltObject* args,int32_t argc)
 {
-       if(argc!=1)
-            return Plt_Err(ARGUMENT_ERROR,"Error bytes() takes one argument!");
-        PltList l;
-        const PltObject& e = args[0];
-        if(e.type=='i')
-        {
-            l.push_back(e);
-            l = ListToByteList(l);
-            PltObject ret;
-          ret.type = 'j';
-          PltList* p = allocList();
-          *p = l;
-          ret.ptr = (void*)p;
-          return ret;
-        }
-        else if(e.type=='l')
-        {
-            l.push_back(e);
-            l = ListToByteList(l);
-            PltObject ret;
-          ret.type = 'j';
-          PltList* p = allocList();
-          *p = l;
-          ret.ptr = (void*)p;
-            return ret;
-        }
-        else if(e.type=='f')
-        {
-            l.push_back(e);
-            l = ListToByteList(l);
-            PltObject ret;
-           ret.type = 'j';
-          PltList* p = allocList();
-          *p = l;
-          ret.ptr = (void*)p;
-            return ret;
-        }
-        else if(e.type=='s')
-        {
-            l.push_back(e);
-            l = ListToByteList(l);
-            PltObject ret;
-          ret.type = 'j';
-          PltList* p = allocList();
-          *p = l;
-          ret.ptr = (void*)p;
-          return ret;
-        }
-        else if(e.type=='b')
-        {
-          l.push_back(e);
-          l = ListToByteList(l);
-          PltObject ret;
-          ret.type = 'j';
-          PltList* p = allocList();
-          *p = l;
-          ret.ptr = (void*)p;
-            return ret;
-        }
-        else
-        {
-            return Plt_Err(TYPE_ERROR,"Error cannot convert "+fullform(e.type)+" type to bytes!");
-        }
+    if(argc!=1)
+      return Plt_Err(ARGUMENT_ERROR,"Error bytes() takes one argument!");
+    auto p = allocByteArray();
+    const PltObject& e = args[0];
+    PltObject ret;
+    ret.type = PLT_BYTEARR;
+    ret.ptr = (void*)p;
+    if(e.type=='i')
+    {
+      p->resize(4);
+      memcpy(&(*p)[0],&e.i,4);
+      return ret;
+    }
+    else if(e.type=='l')
+    {
+      p->resize(8);
+      memcpy(&(*p)[0],&e.l,8);
+      return ret;
+    }
+    else if(e.type=='f')
+    {
+      p->resize(4);
+      memcpy(&(*p)[0],&e.f,4);
+      return ret;
+    }
+    else if(e.type=='s')
+    {
+       string& s = *(string*)e.ptr;
+       for(auto ch: s)
+         p->push_back((uint8_t)ch);
+       return ret;
+    }
+    else if(e.type=='b')
+    {
+      if(e.i)
+        p->push_back(1);
+      else
+        p->push_back(0);
+      return ret;
+    }
+    else
+    {
+        return Plt_Err(TYPE_ERROR,"Error cannot convert "+fullform(e.type)+" type to bytes!");
+    }
 }
 ///////////////
 PltObject OBJINFO(PltObject* args,int32_t argc)
@@ -819,7 +727,7 @@ PltObject makeList(PltObject* args,int32_t argc)
                 {
                     return Plt_Err(VALUE_ERROR,"Error the bytes are invalid to be converted to string!");
                 }
-                res.push_back(PltObjectFromStringPtr(f));
+                res.push_back(PObjFromStrPtr(f));
                 k  = j;
             }
             else if(pattern[i]=='f')
@@ -878,11 +786,11 @@ PltObject SUBSTR(PltObject* args,int32_t argc)
         string* q = allocString();
         if(args[0].i<0 || args[1].i<0 )
         {
-           return PltObjectFromStringPtr(q);
+           return PObjFromStrPtr(q);
         }
         string& data = *(string*)args[2].ptr;
         *q  = substr(args[0].i,args[1].i,data);
-        return PltObjectFromStringPtr(q);
+        return PObjFromStrPtr(q);
 			}
 			else
       {
@@ -974,7 +882,7 @@ PltObject SPLIT(PltObject* args,int32_t argc)
         {
           value = allocString();
           *value = list[o];
-          l.push_back(PltObjectFromStringPtr(value));
+          l.push_back(PObjFromStrPtr(value));
           o+=1;
         }
         PltList* p =new PltList(l);
@@ -1009,7 +917,7 @@ PltObject GETENV(PltObject* args,int32_t argc)
               string* s = allocString();
               *s = c;
 
-              return PltObjectFromStringPtr(s);
+              return PObjFromStrPtr(s);
             }
             else
             {
@@ -1045,19 +953,19 @@ PltObject STR(PltObject* args,int32_t argc)
 			{
                 string* s = allocString();
                 *s = str(args[0].i);
-                return PltObjectFromStringPtr(s);
+                return PObjFromStrPtr(s);
 			}
 			else if(args[0].type=='f')
 			{
                 string* s = allocString();
                 *s = str(args[0].f);
-                return PltObjectFromStringPtr(s);
+                return PObjFromStrPtr(s);
 			}
             else if(args[0].type=='l')
             {
                 string* s = allocString();
                 *s = str(args[0].l);
-                return PltObjectFromStringPtr(s);
+                return PObjFromStrPtr(s);
             }
             return Plt_Err(TYPE_ERROR,"Error str() takes a numeric argument!");
 		}
@@ -1238,7 +1146,7 @@ PltObject REPLACE(PltObject* args,int32_t argc)
            
            string* z = allocString();
            *z = replace_all(a,b,c);
-           return PltObjectFromStringPtr(z);
+           return PObjFromStrPtr(z);
         }
         else
         {
@@ -1260,7 +1168,7 @@ PltObject REPLACE_ONCE(PltObject* args,int32_t argc)
            string& c = *(string*)args[2].ptr;
            string* z = allocString();
            *z = replace(a,b,c);
-           return PltObjectFromStringPtr(z);
+           return PObjFromStrPtr(z);
         }
         else
         {
@@ -1297,7 +1205,7 @@ PltObject datetime(PltObject* args,int32_t argc)
     time_t now = time(0);
     string*  q = allocString();
     *q = ctime(&now);
-    return PltObjectFromStringPtr(q);
+    return PObjFromStrPtr(q);
 }
 PltObject ByteToInt(PltObject* args,int32_t argc)
 {
@@ -1389,7 +1297,7 @@ PltObject readlines(PltObject* args,int32_t argc)
       // bool done;
       PltList lines;
       string* reg = allocString();
-      lines.push_back(PltObjectFromStringPtr(reg));
+      lines.push_back(PObjFromStrPtr(reg));
       int32_t k = 0;
 
       while(true)
@@ -1404,7 +1312,7 @@ PltObject readlines(PltObject* args,int32_t argc)
           {
               k+=1;
               reg = allocString();
-              lines.push_back(PltObjectFromStringPtr(reg));
+              lines.push_back(PObjFromStrPtr(reg));
           }
           else
           {
@@ -1689,55 +1597,124 @@ PltObject CLEAR(PltObject* args,int32_t argc)
 }
 PltObject PUSH(PltObject* args,int32_t argc)
 {
-  if(args[0].type!='j')
+  if(args[0].type!='j' && args[0].type!='c')
          return Plt_Err(NAME_ERROR,"Error type "+fullform(args[0].type)+" has no method named push()");
   if(argc!=2)
     return Plt_Err(ARGUMENT_ERROR,"Error method push() takes 1 argument!");
-  PltList* p = (PltList*)args[0].ptr;
- // p->push_back(args[1]);
-  p->emplace_back(args[1]); //faster
-  PltObject ret;
-  return ret;
-
+  if(args[0].type == 'j')
+  {
+    PltList* p = (PltList*)args[0].ptr;
+  // p->push_back(args[1]);
+    p->emplace_back(args[1]); //faster
+    PltObject ret;
+    return ret;
+  }
+  else
+  {
+    vector<uint8_t>* p = (vector<uint8_t>*)args[0].ptr;
+    if(args[1].type != PLT_BYTE)
+     return Plt_Err(TYPE_ERROR,"Can only push a byte to a bytearray!");
+    p->emplace_back((uint8_t)args[1].i); //faster
+    PltObject ret;
+    return ret;
+  }
 }
 PltObject RESERVE(PltObject* args,int32_t argc)
 {
-  if(args[0].type!='j')
+  if(args[0].type!='j' || args[0].type!='c')
          return Plt_Err(NAME_ERROR,"Error type "+fullform(args[0].type)+" has no method named push()");
   if(argc!=2)
     return Plt_Err(ARGUMENT_ERROR,"Error method reserve() takes 1 argument!");
   if(args[1].type!='i' && args[1].type!='l')
     return Plt_Err(TYPE_ERROR,"Error reserve() takes an integer argument!");
-  PltList* p = (PltList*)args[0].ptr;
   PltObject x = args[1];
   PromoteType(x,'l');
-  p->reserve(x.l);
+  if(args[0].type == PLT_LIST)
+  {
+    PltList* p = (PltList*)args[0].ptr;
+    p->reserve(x.l);
+  }
+  else
+  {
+    vector<uint8_t>* p = (vector<uint8_t>*)args[0].ptr;
+    p->reserve(x.l);
+  }
   PltObject ret;
   return ret;
 
 }
 PltObject FINDINLIST(PltObject* args,int32_t argc)
 {
-  if(args[0].type!='j')
+  if(args[0].type!='j' && args[0].type!=PLT_BYTEARR)
          return Plt_Err(NAME_ERROR,"Error type "+fullform(args[0].type)+" has no method named find()");
   if(argc!=2)
     return Plt_Err(ARGUMENT_ERROR,"Error method find() takes 1 arguments!");
-  PltList* p = (PltList*)args[0].ptr;
-  PltObject ret;
-  for(size_t k=0;k<p->size();k+=1)
+  if(args[0].type == 'j')
   {
-    if((*p)[k]==args[1])
+    PltList* p = (PltList*)args[0].ptr;
+    PltObject ret;
+    for(size_t k=0;k<p->size();k+=1)
     {
-      ret.type = 'i';
-      ret.i = k;
-      return ret;
+      if((*p)[k]==args[1])
+      {
+        ret.type = 'i';
+        ret.i = k;
+        return ret;
+      }
     }
+    return ret;
   }
-  return ret;
+  else
+  {
+    vector<uint8_t>* p = (vector<uint8_t>*)args[0].ptr;
+    PltObject ret;
+    for(size_t k=0;k<p->size();k+=1)
+    {
+      if((*p)[k]==(uint8_t)args[1].i)
+      {
+        ret.type = 'i';
+        ret.i = k;
+        return ret;
+      }
+    }
+    return ret;
+  }
 }
-
+PltObject INSERTBYTEARRAY(PltObject* args,int32_t argc)
+{
+  if(argc==3)
+  {
+    vector<uint8_t>* p = (vector<uint8_t>*)args[0].ptr;
+    PltObject idx = args[1];
+    PltObject val = args[2];
+    if(idx.type!='i' && idx.type!='l')
+      return Plt_Err(TYPE_ERROR,"Error method insert() expects an integer argument for position!");
+    PromoteType(idx,'l');
+    if(idx.l < 0)
+      return Plt_Err(VALUE_ERROR,"Error insertion position is negative!");
+    if((size_t)idx.l > p->size())
+          return Plt_Err(VALUE_ERROR,"Error insertion position out of range!");
+    if(val.type=='c')
+    {
+      auto subarr = *(vector<uint8_t>*)val.ptr;
+      p->insert(p->begin()+idx.l,subarr.begin(),subarr.end());
+    }
+    else if(val.type == PLT_BYTE)
+    {
+      p->insert(p->begin()+idx.l,(uint8_t)val.i);
+    }
+    else
+      return Plt_Err(TYPE_ERROR,"Error method insert() takes a byte or bytearray argument!");
+    PltObject ret;
+    return ret;
+  }
+  else
+    return Plt_Err(ARGUMENT_ERROR,"Error method insert() takes 3 arguments!");
+}
 PltObject INSERT(PltObject* args,int32_t argc)
 {
+  if(args[0].type == 'c')
+    return INSERTBYTEARRAY(args,argc);
   if(args[0].type!='j')
          return Plt_Err(NAME_ERROR,"Error type "+fullform(args[0].type)+" has no method named insert()");
   if(argc==3)
@@ -1765,14 +1742,14 @@ PltObject INSERT(PltObject* args,int32_t argc)
     return ret;
   }
   else
-    return Plt_Err(ARGUMENT_ERROR,"Error method insert() takes 2 arguments!");
+    return Plt_Err(ARGUMENT_ERROR,"Error method insert() takes 3 arguments!");
 }
 PltObject ERASE(PltObject* args,int32_t argc)
 {
   if(args[0].type=='j')
   {
     if(argc!=2 && argc!=3)
-      return Plt_Err(ARGUMENT_ERROR,"Error erase() takes 1 or 2 arguments!");
+      return Plt_Err(ARGUMENT_ERROR,"Error erase() takes 2 or 3 arguments!");
     PltList* p = (PltList*)args[0].ptr;
     PltObject idx1 = args[1];
     PltObject idx2;
@@ -1797,7 +1774,7 @@ PltObject ERASE(PltObject* args,int32_t argc)
   else if(args[0].type=='a')
   {
      if(argc!=2)
-       return Plt_Err(ARGUMENT_ERROR,"Error dictionary method erase() takes 1 argument!");
+       return Plt_Err(ARGUMENT_ERROR,"Error dictionary method erase() takes 2 arguments!");
     Dictionary* d = (Dictionary*)args[0].ptr;
     PltObject key = args[1];
     if(key.type!='i' && key.type!='l' && key.type!='f' && key.type!='s' && key.type!='m' && key.type!='b')
@@ -1805,6 +1782,31 @@ PltObject ERASE(PltObject* args,int32_t argc)
     if(d->find(key)==d->end())
       return Plt_Err(KEY_ERROR,"Error cannot erase value,key not found in the dictionary!");
     d->erase(key);
+    PltObject ret;
+    return ret;
+  }
+  else if(args[0].type == 'c')
+  {
+    if(argc!=2 && argc!=3)
+      return Plt_Err(ARGUMENT_ERROR,"Error erase() takes 2 or 3 arguments!");
+    vector<uint8_t>* p = (vector<uint8_t>*)args[0].ptr;
+    PltObject idx1 = args[1];
+    PltObject idx2;
+    if(argc==3)
+     idx2 = args[2];
+    else
+      idx2 = idx1;
+    if(idx1.type!='i' && idx1.type!='l')
+        return Plt_Err(TYPE_ERROR,"Error method erase() expects an integer argument for start!");
+    if(idx2.type!='i' && idx2.type!='l')
+        return Plt_Err(TYPE_ERROR,"Error method erase() expects an integer argument for end!");
+    PromoteType(idx1,'l');
+    PromoteType(idx2,'l');
+    if(idx1.l < 0 || idx2.l < 0)
+        return Plt_Err(VALUE_ERROR,"Error index is negative!");
+    if((size_t)idx1.l >= p->size() || (size_t)idx2.l >= p->size())
+        return Plt_Err(VALUE_ERROR,"Error index out of range!");
+    p->erase(p->begin()+idx1.l,p->begin()+idx2.l+1);
     PltObject ret;
     return ret;
   }

@@ -527,14 +527,14 @@ public:
 
           vector<uint8_t> a = exprByteCode(ast->childs[0]);
           bytes.insert(bytes.end(), a.begin(), a.end());
-          bytes.push_back(DUP);
-          bytes.push_back(JMPIFFALSE);
+
+          bytes.push_back(JMPIFFALSENOPOP);
           int32_t I = bytes.size();
           bytes.push_back(0);
           bytes.push_back(0);
           bytes.push_back(0);
           bytes.push_back(0);
-          bytes_done+=6;
+          bytes_done+=5;
           vector<uint8_t> b = exprByteCode(ast->childs[1]);
           bytes.insert(bytes.end(), b.begin(), b.end());
           bytes.push_back(AND);
@@ -2386,7 +2386,7 @@ public:
           //elem.s = argv[k];
           string* p = allocString();
           *p = argv[k];
-          l.push_back(PltObjectFromStringPtr(p));
+          l.push_back(PObjFromStrPtr(p));
           k += 1;
       }
       PltObject A;
