@@ -264,7 +264,7 @@ inline PltObject PObjFromDict(Dictionary* l)
   ret.ptr = (void*)l;
   return ret;
 }
-inline PltObject PObjectFromModule(Module* k)
+inline PltObject PObjFromModule(Module* k)
 {
   PltObject ret;
   ret.type = PLT_MODULE;
@@ -297,6 +297,9 @@ typedef NativeFunction*(*fn8)();
 typedef Module*(*fn9)();
 typedef vector<uint8_t>*(*fn10)();
 typedef bool(*fn11)(PltObject*,PltObject*,int,PltObject*);
+typedef void(*fn12)(void*);
+typedef void(*fn13)(void*);
+
 //
 fn1 vm_allocList;
 fn2 vm_allocDict;
@@ -309,6 +312,8 @@ fn8 vm_allocNativeFunObj;
 fn9 vm_allocModule;
 fn10 vm_allocByteArray;
 fn11 vm_callObject;
+fn12 vm_markImportant;
+fn13 vm_unmarkImportant;
 inline PltObject PObjFromStr(string s)
 {
   string* ptr = vm_allocString();
@@ -366,6 +371,8 @@ extern "C"
     fn9 a9;
     fn10 a10;
     fn11 a11;
+    fn12 a12;
+    fn13 a13;
   };
   void api_setup(apiFuncions* p)
   {
@@ -380,6 +387,8 @@ extern "C"
     vm_allocModule = p->a9;
     vm_allocByteArray = p->a10;
     vm_callObject = p->a11;
+    vm_markImportant = p->a12;
+    vm_unmarkImportant = p->a13;
   }
 }
 #endif

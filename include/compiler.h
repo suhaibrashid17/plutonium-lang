@@ -27,6 +27,8 @@ private:
   short fileTOP;
   unordered_map<size_t,ByteSrc>* LineNumberTable;
   bool compileAllFuncs;
+  int32_t lastJIFNP = 0;
+
 public:
   std::unordered_map<string,int32_t> globals;
   size_t bytes_done = 0;
@@ -523,8 +525,6 @@ public:
       }
       if (ast->val == "and")
       {
-          
-
           vector<uint8_t> a = exprByteCode(ast->childs[0]);
           bytes.insert(bytes.end(), a.begin(), a.end());
 
@@ -538,7 +538,6 @@ public:
           vector<uint8_t> b = exprByteCode(ast->childs[1]);
           bytes.insert(bytes.end(), b.begin(), b.end());
           bytes.push_back(AND);
-          
           bytes_done += 1;
           ByteSrc tmp = { fileTOP,line_num };
           LineNumberTable->emplace(bytes_done - 1, tmp);
@@ -568,14 +567,13 @@ public:
           
           vector<uint8_t> a = exprByteCode(ast->childs[0]);
           bytes.insert(bytes.end(), a.begin(), a.end());
-          bytes.push_back(DUP);
-          bytes.push_back(JMPIF);
+          bytes.push_back(NOPOPJMPIF);
           int32_t I = bytes.size();
           bytes.push_back(0);
           bytes.push_back(0);
           bytes.push_back(0);
           bytes.push_back(0);
-          bytes_done+=6;
+          bytes_done+=5;
           vector<uint8_t> b = exprByteCode(ast->childs[1]);
           bytes.insert(bytes.end(), b.begin(), b.end());
           bytes.push_back(OR);

@@ -122,6 +122,9 @@ Module *allocModule();
 NativeFunction *allocNativeFun();
 FunObject* allocFunObject();
 bool callObject(PltObject*,PltObject*,int,PltObject*);
+void markImportant(void*);
+void unmarkImportant(void*);
+
 extern bool REPL_MODE;
 void REPL();
 class VM
@@ -153,9 +156,14 @@ private:
   vector<string> *sources;
   PltList aux; // auxiliary space for markV2
   vector<PltObject> STACK;
+  vector<void*> important;//important memory not to free even when not reachable
+  
 public:
   friend class Compiler;
   friend bool callObject(PltObject*,PltObject*,int,PltObject*);
+  friend void markImportant(void*);
+  friend void unmarkImportant(void*);
+  
   std::unordered_map<void *, MemInfo> memory;
   size_t allocated = 0;
   size_t GC_Cycles = 0;
@@ -163,6 +171,7 @@ public:
   PltObject *constants = NULL;
   int32_t total_constants = 0; // total constants stored in the array constants
   apiFuncions api;
+  
   void load(vector<uint8_t> b, std::unordered_map<size_t, ByteSrc> *ltable, vector<string> *a, vector<string> *c)
   {
     if (program)
@@ -190,6 +199,8 @@ public:
     api.a9 = &allocModule;
     api.a10 = &allocByteArray;
     api.a11 = &callObject;
+    api.a12 = &markImportant;
+    api.a13 = &unmarkImportant;
     api_setup(&api);//
     srand(time(0));
   }
@@ -240,15 +251,23 @@ public:
     }
     printf("%s\n", lstrip(line).c_str());
     printf("%s\n", msg.c_str());
+    
     if (callstack.size() != 0 && e != MAX_RECURSION_ERROR) // printing stack trace for max recursion is stupid
     {
-      printf("<stack-trace>\n");
+      printf("<stack trace>\n");
       while (callstack.size() != 0) // print stack trace
       {
         size_t L = callstack.back() - program;
+        if(callstack.back() == NULL)
+        {
+          printf("  --by Native Module\n");
+          break;
+        }
         L -= 1;
-        while (LineNumberTable->find(L) == LineNumberTable->end())
+        while (L>0 && LineNumberTable->find(L) == LineNumberTable->end())
+        {
           L -= 1; // L is now the index of CALLUDF opcode now
+        }
         // which is ofcourse present in the LineNumberTable
         printf("  --by %s line %ld\n", (*files)[(*LineNumberTable)[L].fileIndex].c_str(), (*LineNumberTable)[L].ln);
         callstack.pop_back();
@@ -451,12 +470,15 @@ public:
   {
     for (auto e : STACK)
       markV2(e);
+    for(auto e: important)
+      memory[e].isMarked = true;
   }
 
   void collectGarbage()
   {
     size_t pre = allocated;
-    vector<void *> toFree;
+    vector<void*> toFree;
+
     for (auto e : memory)
     {
       MemInfo m = e.second;
@@ -464,6 +486,23 @@ public:
         memory[e.first].isMarked = false;
       else
       {
+        //call destructor of unmarked object
+        if (m.type == PLT_OBJ)
+        {
+          KlassInstance *obj = (KlassInstance *)e.first;
+          PltObject dummy;
+          dummy.type = PLT_OBJ;
+          dummy.ptr = e.first;
+          if (obj->members.find("__del__") != obj->members.end())
+          {
+            PltObject p1 = obj->members["__del__"];
+            if(p1.type == PLT_NATIVE_FUNC || p1.type == PLT_FUNC)
+            {
+              PltObject rr;
+              callObject(&p1,&dummy,1,&rr);
+            }
+          }
+        }
         toFree.push_back(e.first);
       }
     }
@@ -471,25 +510,7 @@ public:
     for (auto e : toFree)
     {
       MemInfo m = memory[e];
-      // if memory being deleted is an object
-      // call native destructor
-      if (m.type == PLT_OBJ)
-      {
-        KlassInstance *obj = (KlassInstance *)e;
-        PltObject dummy;
-        dummy.type = PLT_OBJ;
-        dummy.ptr = e;
-        if (obj->members.find("__del__") != obj->members.end())
-        {
-          PltObject p1 = obj->members["__del__"];
-          if(p1.type == PLT_NATIVE_FUNC || p1.type == PLT_FUNC)
-          {
-            PltObject rr;
-            callObject(&p1,&dummy,1,&rr);
-          }
-        }
-      }
-
+      
       if (m.type == PLT_LIST)
       {
         delete (PltList *)e;
@@ -643,11 +664,12 @@ public:
     Dictionary pd1;
     Dictionary *pd_ptr1;
     k = program + offset;
-
+    
     uint8_t inst;
     while (*k != OP_EXIT)
     {
       inst = *k;
+     
       switch (inst)
       {
       case LOAD_GLOBAL:
@@ -2085,12 +2107,7 @@ public:
         STACK.pop_back();
         p1 = STACK[STACK.size() - 1];
         STACK.pop_back();
-        if (p1.type == PLT_OBJ)
-        {
-          if (invokeOperator("__and__", p1, 2, "and", &p2))
-            continue;
-        }
-
+        
         if (p1.type != PLT_BOOL || p2.type != PLT_BOOL)
         {
           orgk = k - program;
@@ -2098,7 +2115,7 @@ public:
           continue;
         }
         p3.type = PLT_BOOL;
-        p3.i = (bool)(p1.i && p2.i);
+        p3.i = (bool)(p2.i);
         STACK.push_back(p3);
         break;
       }
@@ -2128,11 +2145,7 @@ public:
         STACK.pop_back();
         PltObject a = STACK[STACK.size() - 1];
         STACK.pop_back();
-        if (a.type == PLT_OBJ)
-        {
-          if (invokeOperator("__or__", a, 2, "or", &b))
-            continue;
-        }
+        
         if (a.type != PLT_BOOL || b.type != PLT_BOOL)
         {
           orgk = k - program;
@@ -2141,7 +2154,7 @@ public:
         }
         PltObject c;
         c.type = PLT_BOOL;
-        c.i = (bool)(a.i || b.i);
+        c.i = (bool)(b.i);
         STACK.push_back(c);
         break;
         // exit(0);
@@ -2592,6 +2605,22 @@ public:
           continue;
         }
         break;
+      }
+      case NOPOPJMPIF:
+      {
+        k += 1;
+        memcpy(&i1, k, sizeof(int32_t));
+        k += 3;
+        p1 = STACK[STACK.size() - 1];
+        if (p1.type == PLT_NIL || (p1.type == PLT_BOOL && p1.i == 0))
+        {
+          break;
+        }
+        else
+        {
+          k = k + i1 + 1;
+          continue;
+        }
       }
       case LOAD_STR:
       {
@@ -3229,18 +3258,19 @@ public:
   } // end function interpret
   ~VM()
   {
+
     vector<void *> toerase;
     //Call destructors of all objects in memory pool
-    for (auto e : memory)
+    for (auto it=memory.begin();it!=memory.end();)
     {
-      MemInfo m = e.second;
+      MemInfo m = (*it).second;
       //call destructor for each object only once
-      if (m.type == PLT_OBJ && std::find(toerase.begin(),toerase.end(),e.first)==toerase.end())
+      if (m.type == PLT_OBJ)
       {
-        KlassInstance *obj = (KlassInstance *)e.first;
+        KlassInstance *obj = (KlassInstance *)(*it).first;
         PltObject dummy;
         dummy.type = PLT_OBJ;
-        dummy.ptr = e.first;
+        dummy.ptr = (*it).first;
         PltObject rr;
         if (obj->members.find("__del__") != obj->members.end())
         {
@@ -3250,12 +3280,15 @@ public:
             callObject(&p1,&dummy,1,&rr);
           }
         }
-        toerase.push_back(e.first);
+        toerase.push_back((*it).first);
+        it = memory.erase(it);
+        continue;
       }
+      else
+       ++it;
     }
     for (auto e : toerase)
     {
-      memory.erase(e);
       delete (KlassInstance*)e;
     }
     delete[] program;
@@ -3528,4 +3561,17 @@ bool callObject(PltObject* obj,PltObject* args,int N,PltObject* rr)
   *rr = Plt_Err(TYPE_ERROR,"Object not callable!");
   return false;
 }
+void markImportant(void* mem)
+{
+  if(vm.memory.find(mem)!=vm.memory.end())
+    vm.important.push_back(mem);
+  
+}
+void unmarkImportant(void* mem)
+{
+  std::vector<void*>::iterator it;
+  if((it = find(vm.important.begin(),vm.important.end(),mem))!=vm.important.end())
+    vm.important.erase(it); 
+}
+
 #endif

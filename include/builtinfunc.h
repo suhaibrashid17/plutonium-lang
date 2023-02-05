@@ -362,6 +362,8 @@ PltObject LEN(PltObject* args,int32_t argc)
         ret.i = ((PltList*)args[0].ptr)->size();
     else if(args[0].type=='a')
         ret.i = ((Dictionary*)args[0].ptr)->size();
+    else if(args[0].type == 'c')
+        ret.i = ((vector<uint8_t>*)args[0].ptr)->size();
     else
         return Plt_Err(TYPE_ERROR,"Error len() unsupported for type "+fullform(args[0].type));
     return ret;

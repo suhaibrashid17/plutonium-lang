@@ -66,6 +66,8 @@ enum OPCODE
     YIELD = 62,//yields a value from coroutine
     YIELD_AND_EXPECTVAL = 63,//yields but also expects a value when coroutine is resumed
     DUP = 64,
-    GC=65
+    GC=65,
+    NOPOPJMPIF=66
 };
+
 #endif
