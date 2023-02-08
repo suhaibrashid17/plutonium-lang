@@ -620,7 +620,7 @@ public:
         PltObject rr;
         PltObject nil;
         PltObject argArr[2] = {A, (!rhs) ? nil : *rhs};
-        M(argArr, args, &rr);
+        rr = M(argArr, args);
         if (rr.type == PLT_ERROBJ)
         {
           ErrObject *E = (ErrObject *)rr.ptr;
@@ -949,8 +949,7 @@ public:
             NativeFunction *fn = (NativeFunction *)p3.ptr;
             NativeFunPtr f = fn->addr;
             PltObject *argArr = &STACK[STACK.size()-i2];
-            p4.type = PLT_NIL;
-            f(argArr, i2, &p4);
+            p4 = f(argArr, i2);
 
             if (p4.type == PLT_ERROBJ)
             {
@@ -991,7 +990,7 @@ public:
               NativeFunPtr p = fn->addr;
               STACK[STACK.size()-i2-1] = r;
               PltObject *args = &STACK[STACK.size()-i2-1];
-              p(args, i2 + 1, &p1);
+              p1 = p(args, i2 + 1);
               if (p1.type == PLT_ERROBJ)
               {
                 // The module raised an error
@@ -1086,7 +1085,7 @@ public:
             NativeFunPtr R = fn->addr;
             PltObject *args = &STACK[STACK.size()-i2-1];
             PltObject rr;
-            R(args, i2 + 1, &rr);
+            rr = R(args, i2 + 1);
             if (rr.type == PLT_ERROBJ)
             {
               ErrObject *E = (ErrObject *)rr.ptr;
@@ -1241,13 +1240,13 @@ public:
         memcpy(&i1, k, sizeof(int32_t));
         k += 3;
         string name = strings[i1];
-        typedef void (*mfunc)(PltObject *);
+        typedef PltObject (*initFun)();
         typedef void (*apiFun)(apiFuncions *);
         #ifdef BUILD_FOR_WINDOWS
           name = "C:\\plutonium\\modules\\" + name + ".dll";
           HINSTANCE module = LoadLibraryA(name.c_str());
           apiFun a = (apiFun)GetProcAddress(module, "api_setup");
-          mfunc f = (mfunc)GetProcAddress(module, "init");
+          initFun f = (initFun)GetProcAddress(module, "init");
           if (!module)
           {
             spitErr(IMPORT_ERROR, "Error importing module " + to_string(GetLastError()));
@@ -1262,7 +1261,7 @@ public:
             spitErr(IMPORT_ERROR, "Error importing module " + (std::string)(dlerror()));
             continue;
           }
-          mfunc f = (mfunc)dlsym(module, "init");
+          initFun f = (initFun)dlsym(module, "init");
           apiFun a = (apiFun)dlsym(module, "api_setup");
         #endif
         if (!f)
@@ -1277,7 +1276,7 @@ public:
         }
         a(&api);
         PltObject Q;
-        f(&Q);
+        Q = f();
         if (Q.type != PLT_MODULE)
         {
           spitErr(VALUE_ERROR, "Error module's init() should return a module object!");
@@ -1285,7 +1284,6 @@ public:
         }
         moduleHandles.push_back(module);
         STACK.push_back(Q);
-
         break;
       }
       case RETURN:
@@ -2666,7 +2664,7 @@ public:
           NativeFunction *A = (NativeFunction *)fn.ptr;
           NativeFunPtr f = A->addr;
           p4.type = PLT_NIL;
-          f(&(STACK[STACK.size() - N]), N, &p4);
+          p4 = f(&(STACK[STACK.size() - N]), N);
           if (p4.type == PLT_ERROBJ)
           {
             int32_t eCode = p4.i;
@@ -2734,7 +2732,7 @@ public:
               r.ptr = (void *)obj;
               STACK.insert(STACK.end() - N, r);
               args = &STACK[STACK.size() - (N + 1)];
-              M->addr(args, N + 1, &p4);
+              p4 = M->addr(args, N + 1);
               STACK.erase(STACK.end() - (N + 1), STACK.end());
               if (p4.type == PLT_ERROBJ)
               {
@@ -3287,16 +3285,6 @@ public:
       else
        ++it;
     }
-    for (auto e : toerase)
-    {
-      delete (KlassInstance*)e;
-    }
-    delete[] program;
-    delete[] constants;
-    STACK.clear();
-    mark(); // clearing the STACK and marking objects will result in all objects being deleted
-    // which is what we want
-    collectGarbage();
     typedef void (*unload)(void);
     for (auto e : moduleHandles)
     {
@@ -3313,6 +3301,17 @@ public:
       dlclose(e);
       #endif
     }
+    for (auto e : toerase)
+    {
+      delete (KlassInstance*)e;
+    }
+    delete[] program;
+    delete[] constants;
+    STACK.clear();
+    mark(); // clearing the STACK and marking objects will result in all objects being deleted
+    // which is what we want
+    collectGarbage();
+    
   }
 } vm;
 PltList *allocList()
@@ -3543,8 +3542,7 @@ bool callObject(PltObject* obj,PltObject* args,int N,PltObject* rr)
     NativeFunction *A = (NativeFunction *)obj->ptr;
     NativeFunPtr f = A->addr;
     PltObject p4;
-    p4.type = PLT_NIL;
-    f(args, N, &p4);
+    p4 = f(args, N);
     if (p4.type == PLT_ERROBJ)
     {
       *rr = p4;

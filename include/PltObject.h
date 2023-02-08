@@ -181,7 +181,7 @@ struct ErrObject
   string des;
   int code;
 };
-typedef void(*NativeFunPtr)(PltObject*,int,PltObject*);
+typedef PltObject(*NativeFunPtr)(PltObject*,int);
 struct NativeFunction
 {
   Klass* klass;//address of class the function is member of (if any NULL otherwise)
@@ -283,6 +283,13 @@ inline PltObject PObjFromKlassInst(KlassInstance* ki)
   PltObject ret;
   ret.type = PLT_OBJ;
   ret.ptr = (void*)ki;
+  return ret;
+}
+inline PltObject PObjFromByteArr(vector<uint8_t>* k)
+{
+  PltObject ret;
+  ret.type = PLT_BYTEARR;
+  ret.ptr = (void*)k;
   return ret;
 }
 
