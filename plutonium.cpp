@@ -224,6 +224,7 @@ int main(int argc, const char* argv[])
         //vector by the parser
         parser.init(&fnReferenced,&num_of_constants,&files,&sources,filename);
         Node* ast = parser.parse(tokens);
+       // printAST(ast);
         Compiler compiler;
         compiler.init(&fnReferenced,&num_of_constants,&files,&sources,&LineNumberTable,filename);
         vm.constants = new PltObject[num_of_constants];
@@ -234,7 +235,6 @@ int main(int argc, const char* argv[])
         deleteAST(ast);
         tokens.clear();
     }
-
     //WriteByteCode(bytecode,LineNumberTable,files);
     vm.load(bytecode,&LineNumberTable,&files,&sources);
     bytecode.clear();
