@@ -3,26 +3,25 @@
 extern "C"
 {
 
-    void init(PltObject*);
+    PltObject init();
     //
     //Functions
-    void STRERROR(PltObject*,int,PltObject*);
+    PltObject STRERROR(PltObject*,int);
     //Methods of our Wrapper Curl Object(not real curl object)
-    void curlklass__construct__(PltObject*,int,PltObject*);//
-    void setopt(PltObject*,int,PltObject*);
-    void perform(PltObject*,int,PltObject*);
-    void cleanup(PltObject*,int,PltObject*);
-    void getinfo(PltObject*,int,PltObject*);
-    void data(PltObject*,int,PltObject*);
-    void ESCAPE(PltObject*,int,PltObject*);
-    void UNESCAPE(PltObject*,int,PltObject*);
-    void curlklass__destroy(PltObject*,int,PltObject*);
+    PltObject curlklass__construct__(PltObject*,int);//
+    PltObject setopt(PltObject*,int);
+    PltObject perform(PltObject*,int);
+    PltObject cleanup(PltObject*,int);
+    PltObject getinfo(PltObject*,int);
+    PltObject ESCAPE(PltObject*,int);
+    PltObject UNESCAPE(PltObject*,int);
+    PltObject curlklass__destroy(PltObject*,int);
     //Methods of MimeObject
-    void mime__construct__(PltObject*,int,PltObject*);
-    void addpart(PltObject*,int,PltObject*);
-    void MIME_FREE(PltObject*,int,PltObject*);
+    PltObject mime__construct__(PltObject*,int);
+    PltObject addpart(PltObject*,int);
+    PltObject MIME_FREE(PltObject*,int);
     //Methods MimePartObject
-    void MIME_NAME(PltObject*,int,PltObject*);
-    void MIME_DATA(PltObject*,int,PltObject*);
-    void destroyMIMEPART(PltObject*,int,PltObject*);
+    PltObject MIME_NAME(PltObject*,int);
+    PltObject MIME_DATA(PltObject*,int);
+    PltObject destroyMIMEPART(PltObject*,int);
 }

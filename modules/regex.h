@@ -2,11 +2,11 @@
 
 extern "C"
 {
-    void init(PltObject* rr);
+    PltObject init();
 
     //
     //Functions
-    void match(PltObject*,int,PltObject*);
-    void search(PltObject*,int,PltObject*);
-    void replace(PltObject*,int,PltObject*);
+    PltObject match(PltObject*,int);
+    PltObject search(PltObject*,int);
+    PltObject replace(PltObject*,int);
 }
