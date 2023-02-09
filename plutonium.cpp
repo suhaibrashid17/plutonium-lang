@@ -1,4 +1,3 @@
-#define BUILD_FOR_LINUX
 #include <signal.h>
 #include <time.h>
 #include <cstdint>
@@ -109,6 +108,9 @@ void REPL()
   files.push_back(filename);
   sources.push_back("");
   static std::unordered_map<size_t,ByteSrc> LineNumberTable;
+  static size_t stackSize = 3;
+  if(vm.STACK.size() > stackSize)
+    vm.STACK.erase(vm.STACK.begin()+stackSize,vm.STACK.end());
   vector<string> fnReferenced;
   Lexer lex;
   string line;
@@ -132,6 +134,12 @@ void REPL()
     line = readline();
     if(line=="exit" || line=="quit" || line=="baskardebhai" || line=="yawr")
       break;
+    else if(line == ".showstack")
+    {
+      for(auto e: vm.STACK)
+        printf("%s\n",PltObjectToStr(e).c_str());
+      continue;
+    }
     if(line=="")
     {
       continue;
@@ -166,8 +174,12 @@ void REPL()
     //how much is the retarded user gonna write anyway in REPL
     
     vm.load(bytecode,&LineNumberTable,&files,&sources);
-    //WriteByteCode(bytecode,LineNumberTable,files);// for debugging
-    vm.interpret(offset,false);
+   // WriteByteCode(bytecode,LineNumberTable,files);// for debugging
+    vm.interpret(offset,false);//if this line does not return then the line 113 will
+    //pop intermediate values from STACK
+    //if the instruction executed successfuly
+    //it might have changed the stack size 
+    stackSize = vm.STACK.size();
     bytecode.pop_back();
     offset=bytecode.size();
     k=files.size()+1;
@@ -175,6 +187,23 @@ void REPL()
     files.push_back(filename);
     sources.push_back("");
   }
+}
+const char* getOS()
+{
+  #ifdef __linux__
+    return "Linux";
+  #elif _WIN64
+    return "Windows 64 bit";
+  #elif _WIN32
+    return "Windows 32 bit";
+  #elif __FreeBSD__
+    return "FreeBSD";
+  #elif __APPLE__ || __MACH__
+    return "Mac OSX";
+  #elif __unix || __unix__
+    return "Unix";
+  #endif
+  return "OS Unknown";
 }
 int main(int argc, const char* argv[])
 {
@@ -186,7 +215,7 @@ int main(int argc, const char* argv[])
     {
       vm.constants = new PltObject[1];
       vm.total_constants = 1;
-      printf("Plutonium Programming Langauge v%.2f build date(%s %s)\nCreated by Shahryar Ahmad\nREPL Mode(Experimental)\n", PLUTONIUM_VER,__DATE__,__TIME__);
+      printf("Plutonium Programming Langauge v%.2f build date(%s %s) %s\nCreated by Shahryar Ahmad\nREPL Mode(Experimental)\n", PLUTONIUM_VER,__DATE__,__TIME__,getOS());
       REPL();
       return 0;
     }
@@ -235,7 +264,6 @@ int main(int argc, const char* argv[])
         deleteAST(ast);
         tokens.clear();
     }
-    //WriteByteCode(bytecode,LineNumberTable,files);
     vm.load(bytecode,&LineNumberTable,&files,&sources);
     bytecode.clear();
     bytecode.shrink_to_fit();
