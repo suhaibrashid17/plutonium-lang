@@ -65,9 +65,17 @@ PltObject INIT(PltObject* args,int32_t n)
 }
 PltObject REAL_CONNECT(PltObject* args,int n)
 {
-  if(n!=5)
-    return Plt_Err(VALUE_ERROR,"4 arguments needed!");
-  int k = TypeMistmatch("ossss",args,n);
+  if(n!=5 && n!=6)
+    return Plt_Err(VALUE_ERROR,"Either 5 or 6 arguments needed!");
+  int k;
+  int port;
+  if(n==5)
+    k = TypeMistmatch("ossss",args,n);
+  else
+  {
+    k = TypeMistmatch("ossssi",args,n);
+    port = args[5].i;
+  }
   if(k!=-1)
     return Plt_Err(TYPE_ERROR,"Invalid type of argument "+to_string(k));
   KlassInstance* ki = (KlassInstance*)args[0].ptr;
@@ -75,9 +83,17 @@ PltObject REAL_CONNECT(PltObject* args,int n)
     return Plt_Err(TYPE_ERROR,"Argument 1 must be a connection object!");
   MYSQL* conn = (MYSQL*)ki->members[".ptr"].ptr;
   string& host = *(string*)args[1].ptr;
-  if(!mysql_real_connect(conn, host.c_str(),
-        ((string*)args[2].ptr)->c_str(), ((string*)args[3].ptr)->c_str(),((string*)args[4].ptr)->c_str(),0,NULL,0)) {
+  if(n==5)
+  {
+    if(!mysql_real_connect(conn, host.c_str(),((string*)args[2].ptr)->c_str(), ((string*)args[3].ptr)->c_str(),((string*)args[4].ptr)->c_str(),0,NULL,0)) {
       return Plt_Err(UNKNOWN_ERROR,mysql_error(conn));
+    }
+  }
+  else
+  {
+      if(!mysql_real_connect(conn, host.c_str(),((string*)args[2].ptr)->c_str(), ((string*)args[3].ptr)->c_str(),((string*)args[4].ptr)->c_str(),port,NULL,0)) {
+      return Plt_Err(UNKNOWN_ERROR,mysql_error(conn));
+    }
   }
   return nil;
 }

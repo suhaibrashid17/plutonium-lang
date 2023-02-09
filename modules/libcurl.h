@@ -15,13 +15,16 @@ extern "C"
     PltObject getinfo(PltObject*,int);
     PltObject ESCAPE(PltObject*,int);
     PltObject UNESCAPE(PltObject*,int);
-    PltObject curlklass__destroy(PltObject*,int);
+    PltObject curlklass__del__(PltObject*,int);
     //Methods of MimeObject
     PltObject mime__construct__(PltObject*,int);
     PltObject addpart(PltObject*,int);
-    PltObject MIME_FREE(PltObject*,int);
+    PltObject MIME__del__(PltObject*,int);
     //Methods MimePartObject
     PltObject MIME_NAME(PltObject*,int);
+    PltObject MIME_FILENAME(PltObject*,int);
+    PltObject MIME_CONTENTTYPE(PltObject*,int);
     PltObject MIME_DATA(PltObject*,int);
-    PltObject destroyMIMEPART(PltObject*,int);
+    PltObject MIMEPART__del__(PltObject*,int);
+    
 }

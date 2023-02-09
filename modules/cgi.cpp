@@ -235,16 +235,14 @@ Dictionary* parse_multipart(char* data,int len,const string& boundary,bool& hadE
       else
       {
         //file content uploaded
-        if(headers.find("content-type")==headers.end())
-          return nullptr;
-        aux = headers["content-type"];
-        parts = splitIgnQuotes(aux,';');
-        if(parts.size()!=1)
-          return nullptr;
         KlassInstance* ki = vm_allocKlassInstance();
         ki->klass = CgiFile;
         ki->members.emplace("filename",PObjFromStr(filename));
-        ki->members.emplace("type",PObjFromStr(aux));
+        if(headers.find("content-type")!=headers.end())
+        {
+          aux = headers["content-type"];
+          ki->members.emplace("type",PObjFromStr(aux));
+        }
         auto btArr = vm_allocByteArray();
         btArr->resize(content.length());
         memcpy(&btArr->at(0),&content[0],content.length());
@@ -374,16 +372,10 @@ Dictionary* POST(bool& err)
 PltObject FormData(PltObject* args,int n)
 {
     if(n!=0)
-    {
         return Plt_Err(ARGUMENT_ERROR,"0 arguments needed!");
-        
-    }
     char* method = getenv("REQUEST_METHOD");
     if(!method)
-    {
         return Plt_Err(UNKNOWN_ERROR,"Environment variable REQUEST_METHOD not found!");
-        
-    }
     if(string(method)=="GET")
     {
        Dictionary* d = vm_allocDict();

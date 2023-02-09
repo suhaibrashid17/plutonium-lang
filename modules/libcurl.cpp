@@ -48,8 +48,6 @@ struct CurlObject //Wrapper around the curl handle
 };
 struct MimePart  //Wrapper around curl_mimepart
 {
-  char* name;
-  char* data;
   curl_mimepart* mimepart;
 };
 PltObject nil;
@@ -63,31 +61,31 @@ PltObject init()
     PltObject nil;
     Module* d = vm_allocModule();
     //
-    curlklass = vm_allocKlass();
+    curlklass = new Klass;
+  
     curlklass->name = "Curl";
     curlklass->members.emplace("__construct__",PObjFromMethod("Curl.__construct__",&curlklass__construct__,curlklass));
     curlklass->members.emplace("perform",PObjFromMethod("Curl.perform",&perform,curlklass));
-    curlklass->members.emplace("cleanup",PObjFromMethod("Curl.cleanup",&cleanup,curlklass));
     curlklass->members.emplace("setopt",PObjFromMethod("Curl.setopt",&setopt,curlklass));
     curlklass->members.emplace("getinfo",PObjFromMethod("Curl.getinfo",&getinfo,curlklass));
-    curlklass->members.emplace("__del__",PObjFromMethod("__del__",&curlklass__destroy,curlklass));
-    curlklass->members.emplace("escape",PObjFromFunction("escape",&ESCAPE,curlklass));
-    curlklass->members.emplace("unescape",PObjFromFunction("unescape",&UNESCAPE,curlklass));
+    curlklass->members.emplace("__del__",PObjFromMethod("Curl.__del__",&curlklass__del__,curlklass));
+    curlklass->members.emplace("escape",PObjFromFunction("Curl.escape",&ESCAPE,curlklass));
+    curlklass->members.emplace("unescape",PObjFromFunction("Curl.unescape",&UNESCAPE,curlklass));
     
     //
-    mimepartklass = vm_allocKlass();
+    mimepartklass = new Klass;
     mimepartklass->name = "mimepart";
     //
-    mimeklass = vm_allocKlass();
+    mimeklass = new Klass;
     mimeklass->name = "mime";
     //add methods to object
     mimeklass->members.emplace("__construct__",PObjFromMethod("mime.__construct__",&mime__construct__,mimeklass));
     mimeklass->members.emplace("addpart",PObjFromMethod("mime.addpart",&addpart,mimeklass));
-    mimeklass->members.emplace("free",PObjFromMethod("mime.free",&MIME_FREE,mimeklass));
-    mimeklass->members.emplace("mimepart",PObjFromKlass(mimepartklass));//to keep mimepart class alive when mime class is alive
+    mimeklass->members.emplace("__del__",PObjFromMethod("mime.__del__",&MIME__del__,mimeklass));
     
     //
-    
+    //these 3 classes are required during whole life of module
+    //so we manually manage their memory
     //
     d->members.emplace("Curl",PObjFromKlass(curlklass));
     d->members.emplace("mime",PObjFromKlass(mimeklass));
@@ -112,14 +110,15 @@ PltObject init()
 
     return PObjFromModule(d);
 }
-PltObject curlklass__destroy(PltObject* args,int n)//called by the VM so no typechecking required
+PltObject curlklass__del__(PltObject* args,int n)//called by the VM so no typechecking required
 {
     KlassInstance* d = (KlassInstance*)args[0].ptr;
     CurlObject* obj = (CurlObject*)(d->members)[".handle"].ptr;
     if(obj->postfields!=NULL)
       delete[] obj->postfields;
+    curl_easy_cleanup(obj->handle);
     delete obj;
-    (d->members)[".handle"] = PObjFromInt(0);
+    (d->members)[".handle"] = nil;
     return nil;
 }
 PltObject STRERROR(PltObject* args,int n)
@@ -160,13 +159,10 @@ PltObject curlklass__construct__(PltObject* args,int n)
   return nil;
  
 }
-PltObject MIME_FREE(PltObject* args,int n)
+PltObject MIME__del__(PltObject* args,int n)
 {
     if(n!=1)
-    {
         return Plt_Err(ARGUMENT_ERROR,"1 argument needed!");
-        
-    }
     KlassInstance* k = (KlassInstance*)args[0].ptr;
     curl_mime* obj = (curl_mime*)k->members[".handle"].ptr;
     curl_mime_free(obj);
@@ -196,98 +192,91 @@ PltObject mime__construct__(PltObject* args,int n)
 PltObject MIME_NAME(PltObject* args,int n)
 {
     if(n!=2)
-    {
         return Plt_Err(ARGUMENT_ERROR,"2 argument needed!");
-        
-    }
     if(args[1].type!='s')
-    {
         return Plt_Err(TYPE_ERROR,"Argument 2 must be string!");
-        
-    }
     if(args[0].type!='o' || ((KlassInstance*)args[0].ptr)->klass!=mimepartklass)
-    {
       return Plt_Err(TYPE_ERROR,"Argument 1 must be a MimePart object");
-      
-    }
   KlassInstance* d = (KlassInstance*)args[0].ptr;
   MimePart* obj = (MimePart*)(d->members)[".handle"].ptr;
   string& name = *(string*)args[1].ptr;
-  obj->name = new char[name.length()+1];
-  int i=0;
-  size_t len = name.length();
-    for(i=0;i<len;i++)
-      obj->name[i] = name[i];
-    obj->name[i] = 0;
-    curl_mime_name(obj->mimepart,obj->name);
+  curl_mime_name(obj->mimepart,name.c_str());
+  return nil;
+}
+PltObject MIME_FILENAME(PltObject* args,int n)
+{
+    if(n!=2)
+        return Plt_Err(ARGUMENT_ERROR,"2 argument needed!");
+    if(args[1].type!='s')
+        return Plt_Err(TYPE_ERROR,"Argument 2 must be string!");
+    if(args[0].type!='o' || ((KlassInstance*)args[0].ptr)->klass!=mimepartklass)
+      return Plt_Err(TYPE_ERROR,"Argument 1 must be a MimePart object");
+  KlassInstance* d = (KlassInstance*)args[0].ptr;
+  MimePart* obj = (MimePart*)(d->members)[".handle"].ptr;
+  string& name = *(string*)args[1].ptr;
+  curl_mime_filename(obj->mimepart,name.c_str());
+  return nil;
+}
+PltObject MIME_CONTENTTYPE(PltObject* args,int n)
+{
+    if(n!=2)
+        return Plt_Err(ARGUMENT_ERROR,"2 argument needed!");
+    if(args[1].type!='s')
+        return Plt_Err(TYPE_ERROR,"Argument 2 must be string!");
+    if(args[0].type!='o' || ((KlassInstance*)args[0].ptr)->klass!=mimepartklass)
+      return Plt_Err(TYPE_ERROR,"Argument 1 must be a MimePart object");
+  KlassInstance* d = (KlassInstance*)args[0].ptr;
+  MimePart* obj = (MimePart*)(d->members)[".handle"].ptr;
+  string& name = *(string*)args[1].ptr;
+  curl_mime_type(obj->mimepart,name.c_str());
   return nil;
 }
 PltObject MIME_DATA(PltObject* args,int n)
 {
     if(n!=2)
-    {
         return Plt_Err(ARGUMENT_ERROR,"1 argument needed!");
-        
-    }
     if(args[1].type!='c')
-    {
       return Plt_Err(TYPE_ERROR,"Argument 2 must be a Byte array!");
-      
-    }
     if(args[0].type!='o' || ((KlassInstance*)args[0].ptr)->klass!=mimepartklass)
-    {
       return Plt_Err(TYPE_ERROR,"Argument 1 must be a MimePart object");
-      
-    }
     KlassInstance* d = (KlassInstance*)args[0].ptr;
     MimePart* obj = (MimePart*)(d->members)[".handle"].ptr;
     auto l = *(vector<uint8_t>*)args[1].ptr;
-    char* arr = new char[l.size()];
-    for(int i=0;i<l.size();i++)
-      arr[i] = l[i];
-    obj->data = arr;
-    curl_mime_data(obj->mimepart,arr,l.size());
+    curl_mime_data(obj->mimepart,(const char*)&l[0],l.size());
     return nil;
 }
-PltObject destroyMIMEPART(PltObject* args,int n)
-{
-    KlassInstance* d = (KlassInstance*)args[0].ptr;
-    MimePart* obj = (MimePart*)(d->members)[".handle"].ptr;
-    if(obj->name!=NULL)
-      delete[] obj->name;
-    if(obj->data!=NULL)
-      delete[] obj->data;
-    delete obj;
-    return nil;
-}
+
 PltObject addpart(PltObject* args,int n)
 {
     if(n!=1)
-    {
         return Plt_Err(ARGUMENT_ERROR,"1 arguments needed!");
-        
-    }
     if(args[0].type!='o' || ((KlassInstance*)args[0].ptr)->klass!=mimeklass)
-    {
       return Plt_Err(TYPE_ERROR,"Argument 1 must be a Mime object");
-      
-    }
     KlassInstance* d = (KlassInstance*)args[0].ptr;
-
     curl_mime* obj = (curl_mime*)(d->members)[".handle"].ptr;
     curl_mimepart* mimepart = curl_mime_addpart(obj);
     MimePart* mp = new MimePart;
-    mp->name = NULL;
-    mp->data = NULL;
     mp->mimepart = mimepart;
     //add methods to object
     KlassInstance* part = vm_allocKlassInstance();
     part->klass = mimepartklass;
     part->members.emplace(("data"),PObjFromMethod("mimepart.data",&MIME_DATA,mimepartklass));
     part->members.emplace(("name"),PObjFromMethod("mimepart.name",&MIME_NAME,mimepartklass));
-    part->members.emplace(("__del__"),PObjFromMethod("destroy",&destroyMIMEPART,mimepartklass));
+    part->members.emplace(("filename"),PObjFromMethod("mimepart.filename",&MIME_FILENAME,mimepartklass));
+    part->members.emplace(("type"),PObjFromMethod("mimepart.type",&MIME_CONTENTTYPE,mimepartklass));
+    part->members.emplace(("__del__"),PObjFromMethod("mimepart.__del__",&MIMEPART__del__,mimepartklass));
     part->members.emplace((".handle"),PObjFromPtr((void*)mp));
+
     return PObjFromKlassInst(part);
+}
+PltObject MIMEPART__del__(PltObject* args,int n)
+{
+    if(n!=1)
+        return Plt_Err(ARGUMENT_ERROR,"1 argument needed!");
+    KlassInstance* k = (KlassInstance*)args[0].ptr;
+    MimePart* obj = (MimePart*)k->members[".handle"].ptr;
+    delete obj;
+    return nil;
 }
 PltObject setopt(PltObject* args,int n)
 {
@@ -402,22 +391,13 @@ PltObject setopt(PltObject* args,int n)
         CurlObject* obj = (CurlObject*)(d->members)[".handle"].ptr;
         CURLcode res = curl_easy_setopt(obj->handle,(CURLoption)opt,&WMCallbackHandler);
         if( res!= CURLE_OK)
-        {
           return Plt_Err(UNKNOWN_ERROR,(string)curl_easy_strerror(res));
-          
-        }
-        
+        return nil;
       }
       if(args[2].type!=PLT_INT )
-      {
         return Plt_Err(TYPE_ERROR,"WRITEFUNCTION option requires an integer value");
-         
-      }
       if(args[2].i!=0)
-      {
         return Plt_Err(TYPE_ERROR,"Invalid option value "+to_string(args[2].i));
-         
-      }
       KlassInstance* d = (KlassInstance*)args[0].ptr;
       auto btArr = vm_allocByteArray();
       PltObject p1;
@@ -452,17 +432,11 @@ PltObject setopt(PltObject* args,int n)
     }
     else if(opt==CURLOPT_POSTFIELDS)
     {
-      if(args[2].type!=PLT_LIST)
-      {
+      if(args[2].type!=PLT_BYTEARR)
         return Plt_Err(TYPE_ERROR,"POSTFIELDS option requires a byte array!");
-         
-      }
       vector<uint8_t>& l = *(vector<uint8_t>*)args[2].ptr;
       if(l.size()==0)
-      {
         return Plt_Err(VALUE_ERROR,"Empty bytearray");
-        
-      }
       char* postfields = new char[l.size()];
       memcpy(postfields,&l[0],l.size());
       KlassInstance* d = (KlassInstance*)args[0].ptr;
@@ -470,11 +444,9 @@ PltObject setopt(PltObject* args,int n)
       obj->postfields = postfields;
       CURLcode res = curl_easy_setopt(obj->handle,(CURLoption)opt,postfields);
       if( res!= CURLE_OK)
-      {
         return Plt_Err(UNKNOWN_ERROR,(string)curl_easy_strerror(res));
-        
-      }
-      curl_easy_setopt(obj->handle,CURLOPT_POSTFIELDSIZE,l.size());
+      res = curl_easy_setopt(obj->handle,CURLOPT_POSTFIELDSIZE,l.size());
+      
     }
     else
     {
@@ -542,6 +514,7 @@ PltObject getinfo(PltObject* args,int n)
     }
     return nil;
 }
+/*curl__del__ does the cleanup as well
 PltObject cleanup(PltObject* args,int n)
 {
     if(n!=1)
@@ -559,7 +532,7 @@ PltObject cleanup(PltObject* args,int n)
     CurlObject* obj = (CurlObject*)(d->members)[".handle"].ptr;
     curl_easy_cleanup(obj->handle);
     return nil;
-}
+}*/
 
 
 PltObject ESCAPE(PltObject* args,int n)
@@ -628,4 +601,7 @@ PltObject UNESCAPE(PltObject* args,int n)
 extern "C" void unload()
 {
   curl_global_cleanup();
+  delete curlklass;
+  delete mimeklass;
+  delete mimepartklass;
 }
