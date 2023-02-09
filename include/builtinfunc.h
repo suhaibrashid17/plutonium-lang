@@ -616,6 +616,23 @@ PltObject OBJINFO(PltObject* args,int32_t argc)
         return Plt_Err(TYPE_ERROR,"Error argument is not an instance of any class!");
     }
 }
+PltObject moduleInfo(PltObject* args,int32_t argc)
+{
+  if(argc!=1)
+    return Plt_Err(ARGUMENT_ERROR,"Error moduleInfo takes 1 argument!");
+  if(args[0].type!=PLT_MODULE)
+    return Plt_Err(TYPE_ERROR,"Argument must be a module object!");
+  Module* mod = (Module*)args[0].ptr;
+  printf("Module %s\n",mod->name.c_str());
+  printf("------------\n");
+  for(auto e: mod->members)
+  {
+    printf("%s  %s\n",e.first.c_str(),fullform(e.second.type).c_str());
+
+  }
+  PltObject ret;
+  return ret;
+}
 PltObject makeList(PltObject* args,int32_t argc)
 {
         PltObject ret;
@@ -1373,7 +1390,7 @@ PltObject FREAD(PltObject* args,int32_t argc)
 PltObject FWRITE(PltObject* args,int32_t argc)
 {
     PltObject ret;
-    int64_t S = 0;
+    size_t S = 0;
     if(argc==2)
     {
     if(!validateArgTypes("fwrite","cu",args,argc,ret))
@@ -1385,17 +1402,19 @@ PltObject FWRITE(PltObject* args,int32_t argc)
        if(args[0].type!='j' || args[1].type!='u' || (args[2].type!='i' && args[2].type!='l'))
          return Plt_Err(TYPE_ERROR,"Invalid Argument types");
        if(args[2].type=='i')
-         S = args[2].i;
+         S = (size_t)args[2].i;
         else
-         S = args[2].l;
+         S = (size_t)args[2].l;
     }
     else
     {
-      return Plt_Err(ARGUMENT_ERROR,"Error fread takes either 2 or 3 arguments");
+      return Plt_Err(ARGUMENT_ERROR,"Error fwrite takes either 2 or 3 arguments");
     }
     auto l = (vector<uint8_t>*)args[0].ptr;
     if(S > l->size())
       return Plt_Err(VALUE_ERROR,"Error the bytearray needs to have specified number of bytes!");
+    if(l->size() == 0)
+      return ret;
     FileObject fobj = *(FileObject*)args[1].ptr;
     if(!fobj.open)
       return Plt_Err(VALUE_ERROR,"Error the file stream is closed!");
@@ -1904,6 +1923,95 @@ PltObject HASKEY(PltObject* args,int32_t argc)
   return ret;
 
 }
+PltObject UNPACK(PltObject* args,int32_t argc)
+{
+  if(args[0].type!=PLT_BYTEARR)
+    return Plt_Err(NAME_ERROR,"Error object has no member unpack()");
+  if(argc!=2)
+    return Plt_Err(ARGUMENT_ERROR,"Error unpack() takes 2 arguments!");
+  if(args[1].type!=PLT_STR)
+    return Plt_Err(TYPE_ERROR,"Error unpack() takes a string argument!");
+  auto arr = (vector<uint8_t>*)args[0].ptr;
+  string& pattern = *(string*)args[1].ptr;
+  size_t k = 0;
+  int32_t int32;
+  int64_t int64;
+  double d;
+  bool b;
+  string str;
+  vector<PltObject>* lp = allocList();
+  vector<PltObject>& res = *lp;
+  for(size_t i=0;i<pattern.length();i++)
+  {
+    char ch = pattern[i];
+    if(ch == 'i')
+    {
+      if(k+3 >= arr->size())
+         return Plt_Err(VALUE_ERROR,"Error making element "+to_string(res.size())+" from bytearray(not enough bytes)!");
+      memcpy(&int32,&arr->at(k),4);
+      res.push_back(PObjFromInt(int32));
+      k+=4;
+    }
+    else if(ch == 'l')
+    {
+      if(k+7 >= arr->size())
+         return Plt_Err(VALUE_ERROR,"Error making element "+to_string(res.size())+" from bytearray(not enough bytes)!");
+      memcpy(&int64,&arr->at(k),8);
+      res.push_back(PObjFromInt64(int64));      
+      k+=8;
+    }
+    else if(ch == 'f')
+    {
+      if(k+7 >= arr->size())
+         return Plt_Err(VALUE_ERROR,"Error making element "+to_string(res.size())+" from bytearray(not enough bytes)!");
+      memcpy(&d,&arr->at(k),8);
+      res.push_back(PObjFromDouble(d));
+      k+=8;
+    }
+    else if(ch == 'b')
+    {
+      if(k >= arr->size())
+         return Plt_Err(VALUE_ERROR,"Error making element "+to_string(res.size())+" from bytearray(not enough bytes)!");
+      memcpy(&b,&arr->at(k),1);
+      res.push_back(PObjFromBool(b));
+      k+=1;
+    }
+    else if(ch == 's')
+    {
+      if(i+1>=pattern.length())
+        return Plt_Err(VALUE_ERROR,"Error in pattern,required length after 's' ");
+      if(!isdigit(pattern[i+1]))
+        return Plt_Err(VALUE_ERROR,"Error in pattern,required length after 's' ");
+      string l;
+      i+=1;
+      l+=pattern[i];
+      i+=1;
+      while(i<pattern.length() && isdigit(pattern[i]))
+      {
+        l+=pattern[i];
+        i++;
+      }
+      if(!isnum(l) && !isInt64(l))
+        return Plt_Err(OVERFLOW_ERROR,"Error given string length too large!");
+      long long int len = atoll(l.c_str());
+      if((long long int)k+len-1 >= (long long int)arr->size())
+         return Plt_Err(VALUE_ERROR,"Error making element "+to_string(res.size())+" from bytearray(not enough bytes)!");
+      str = "";
+      size_t f = k+(size_t)len;
+      for(;k!=f;++k)
+      {
+        char c = (*arr)[k];
+        str.push_back(c);
+      }
+      auto p = allocString();
+      *p = str;
+      res.push_back(PObjFromStrPtr(p));
+    }
+    else
+      return Plt_Err(VALUE_ERROR,"Error invalid char in pattern string!"); 
+  }
+  return PObjFromList(lp);
+}
 ////////////////////
 ///////////////
 void initFunctions()
@@ -1959,6 +2067,8 @@ void initFunctions()
   funcs.emplace("fninfo",&fninfo);
   funcs.emplace("addr",&ADDR);
   funcs.emplace("bytearray",&BYTEARRAY);
+  funcs.emplace("moduleInfo",&moduleInfo);
+
 }
 std::unordered_map<string,BuiltinFunc> methods;
 void initMethods()
@@ -1975,6 +2085,7 @@ void initMethods()
   methods.emplace("emplace",&EMPLACE);
   methods.emplace("hasKey",&HASKEY);
   methods.emplace("asList",&ASLIST);
+  methods.emplace("unpack",&UNPACK);
 
 }
 PltObject callmethod(string name,PltObject* args,int32_t argc)

@@ -22,11 +22,11 @@ string str(double f)
 {
 	string x = to_string(f);
   
-	while(x[x.length()-1]=='0')
+	while(x.length()>=1 && x[x.length()-1]=='0')
     {
         x = x.substr(0,x.length()-1);
     }
-    if(x[x.length()-1]=='.')
+    if(x.length()>=1 && x[x.length()-1]=='.')
     {
         x+='0';
     }
@@ -71,7 +71,7 @@ int32_t Int(string s)
 bool isInt64(string s)
 {
     while(s.length()>1 && s[0]=='0')
-        s = s.substr(1);
+      s = s.substr(1);
 	return (str(toInt64(s.c_str()))==s);
 }
 bool isnum(string s)

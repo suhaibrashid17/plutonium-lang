@@ -10,7 +10,7 @@
 #include <string.h>
 #include <math.h>
 #include <cstdint>
-#ifdef BUILD_FOR_LINUX
+#ifdef __linux__
 #include <dlfcn.h>
 #include <unistd.h>
 #else
@@ -18,7 +18,7 @@
 #endif
 using namespace std;
 #include "PltObject.h"
-#define PltArgs const vector<PltObject>&
+
 typedef PltObject(*BuiltinFunc)(PltObject*,int32_t);
 void PromoteType(PltObject&,char t);
 string fullform(char);

@@ -171,6 +171,7 @@ struct Module
 struct FunObject
 {
   Klass* klass;//functions can be binded to classes as methods in which case they will have access to private members of that class
+  //and also keep the class alive with them
   string name;
   size_t i;
   size_t args;
@@ -247,6 +248,13 @@ inline PltObject PObjFromByte(unsigned char x)
   PltObject ret;
   ret.type = 'm';
   ret.i = x;
+  return ret;
+}
+inline PltObject PObjFromBool(bool b)
+{
+  PltObject ret;
+  ret.type = PLT_BOOL;
+  ret.i = b;
   return ret;
 }
 
@@ -381,6 +389,9 @@ extern "C"
     fn12 a12;
     fn13 a13;
   };
+  #ifdef _WIN32
+  __declspec(dllexport)
+  #endif
   void api_setup(apiFuncions* p)
   {
     vm_allocList = p->a1;

@@ -1,7 +1,7 @@
 #ifndef VM_H_
 #define VM_H_
 #include "plutonium.h"
-typedef PltObject *(*Nativefunc)(PltObject *, int32_t, PltObject *);
+
 using namespace std;
 struct ByteSrc
 {
@@ -140,10 +140,10 @@ private:
   vector<uint8_t *> except_targ;
   vector<size_t> tryLimitCleanup;
   // int32_t Gc_Cycles = 0;
-  #ifdef BUILD_FOR_WINDOWS
+  #ifdef _WIN32
     vector<HINSTANCE> moduleHandles;
-  #endif // BUILD_FOR_WINDOWS
-  #ifdef BUILD_FOR_LINUX
+  #endif // 
+  #ifdef __linux__
     vector<void *> moduleHandles;
   #endif
   vector<FunObject *> executing = {NULL}; // pointer to plutonium function object we are executing,NULL means control is not in a function
@@ -163,7 +163,7 @@ public:
   friend bool callObject(PltObject*,PltObject*,int,PltObject*);
   friend void markImportant(void*);
   friend void unmarkImportant(void*);
-  
+  friend void REPL();
   std::unordered_map<void *, MemInfo> memory;
   size_t allocated = 0;
   size_t GC_Cycles = 0;
@@ -486,7 +486,7 @@ public:
         memory[e.first].isMarked = false;
       else
       {
-        //call destructor of unmarked object
+        //call destructor of unmarked objects
         if (m.type == PLT_OBJ)
         {
           KlassInstance *obj = (KlassInstance *)e.first;
@@ -506,7 +506,6 @@ public:
         toFree.push_back(e.first);
       }
     }
-
     for (auto e : toFree)
     {
       MemInfo m = memory[e];
@@ -647,10 +646,7 @@ public:
     // Some registers
     int32_t i1;
     int32_t i2;
-    int32_t i3;
-    int64_t l1;
-    double f1;
-    uint8_t m1;
+
     PltObject p1;
     PltObject p2;
     PltObject p3;
@@ -658,7 +654,6 @@ public:
     string s1;
     string s2;
     char c1;
-    char c2;
     PltList pl1;      // plutonium list 1
     PltList *pl_ptr1; // plutonium list pointer 1
     Dictionary pd1;
@@ -1242,7 +1237,7 @@ public:
         string name = strings[i1];
         typedef PltObject (*initFun)();
         typedef void (*apiFun)(apiFuncions *);
-        #ifdef BUILD_FOR_WINDOWS
+        #ifdef _WIN32
           name = "C:\\plutonium\\modules\\" + name + ".dll";
           HINSTANCE module = LoadLibraryA(name.c_str());
           apiFun a = (apiFun)GetProcAddress(module, "api_setup");
@@ -1253,7 +1248,7 @@ public:
             continue;
           }
         #endif
-          #ifdef BUILD_FOR_LINUX
+          #ifdef __linux__
           name = "/opt/plutonium/modules/" + name + ".so";
           void *module = dlopen(name.c_str(), RTLD_LAZY);
           if (!module)
@@ -2628,7 +2623,6 @@ public:
         p1.type = PLT_STR;
         p1.ptr = (void *)&strings[i1];
         STACK.push_back(p1);
-
         break;
       }
       case CALLUDF:
@@ -3288,13 +3282,13 @@ public:
     typedef void (*unload)(void);
     for (auto e : moduleHandles)
     {
-      #ifdef BUILD_FOR_WINDOWS
+      #ifdef _WIN32
       unload ufn = (unload)GetProcAddress(e, "unload");
       if (ufn)
         ufn();
       FreeLibrary(e);
       #endif
-      #ifdef BUILD_FOR_LINUX
+      #ifdef __linux__
       unload ufn = (unload)dlsym(e, "unload");
       if (ufn)
         ufn();
@@ -3550,7 +3544,7 @@ bool callObject(PltObject* obj,PltObject* args,int N,PltObject* rr)
     }
     if (fullform(p4.type) == "Unknown" && p4.type != PLT_NIL)
     {
-      *rr = Plt_Err(VALUE_ERROR, "Error invalid response from module!");
+      *rr = Plt_Err(VALUE_ERROR, "Error invalid response from native function!");
       return false;
     }
     *rr = p4;
