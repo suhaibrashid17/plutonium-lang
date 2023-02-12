@@ -497,8 +497,8 @@ PltObject WRITE(PltObject* args,int32_t argc)
   if(!validateArgTypes("write",patt,args,argc,ret))
     return ret;
   string& data = *(string*)args[0].ptr;
-                  FileObject* p = (FileObject*)args[1].ptr;
-                FILE* fp = p->fp;
+  FileObject* p = (FileObject*)args[1].ptr;
+  FILE* fp = p->fp;
   if(fputs(data.c_str(),fp)==EOF)
     return Plt_Err(FILEIO_ERROR,"Error while writing to file: "+(std::string)strerror(errno));
   ret.type = 'n';
@@ -1202,7 +1202,7 @@ PltObject SLEEP(PltObject* args,int32_t argc)
     {
       PltObject r = args[0];
       PromoteType(r,'l');
-      #ifdef BUILD_FOR_WINDOWS
+      #ifdef _WIN32
       #include <windows.h>
          Sleep(r.l);
       #else
@@ -1591,10 +1591,24 @@ PltObject CLOCK(PltObject* args,int32_t argc)
 //be an object
 PltObject POP(PltObject* args,int32_t argc)
 {
-  if(args[0].type!='j')
+  if(args[0].type!='j' && args[0].type!='c')
          return Plt_Err(NAME_ERROR,"Error type "+fullform(args[0].type)+" has no method named pop()");
   if(argc!=1)
-    return Plt_Err(ARGUMENT_ERROR,"Error method pop() takes 0 arguments!");
+    return Plt_Err(ARGUMENT_ERROR,"Error method pop() takes 1 arguments!");
+  if(args[0].type == 'c')
+  {
+    PltObject ret;
+
+    auto p = (vector<uint8_t>*)args[0].ptr;
+    if(p->size() != 0)
+    {
+      ret.type = PLT_BYTE;
+      ret.i = p->back();
+      p->pop_back();
+      return ret;
+    }
+    return ret;
+  }
   PltList* p = (PltList*)args[0].ptr;
   PltObject ret;
   if(p->size()!=0)
@@ -1602,7 +1616,8 @@ PltObject POP(PltObject* args,int32_t argc)
     ret = p->back();
     p->pop_back();
   }
-
+  else
+    return Plt_Err(VALUE_ERROR,"List is empty.No value to pop!");
   return ret;
 }
 PltObject CLEAR(PltObject* args,int32_t argc)

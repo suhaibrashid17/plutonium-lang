@@ -1244,7 +1244,7 @@ public:
           initFun f = (initFun)GetProcAddress(module, "init");
           if (!module)
           {
-            spitErr(IMPORT_ERROR, "Error importing module " + to_string(GetLastError()));
+            spitErr(IMPORT_ERROR, "LoadLibrary() returned " + to_string(GetLastError()));
             continue;
           }
         #endif
@@ -1253,7 +1253,7 @@ public:
           void *module = dlopen(name.c_str(), RTLD_LAZY);
           if (!module)
           {
-            spitErr(IMPORT_ERROR, "Error importing module " + (std::string)(dlerror()));
+            spitErr(IMPORT_ERROR, "dlopen(): " + (std::string)(dlerror()));
             continue;
           }
           initFun f = (initFun)dlsym(module, "init");
@@ -2597,6 +2597,7 @@ public:
           k = k + i1 + 1;
           continue;
         }
+        STACK.pop_back();
         break;
       }
       case NOPOPJMPIF:
@@ -2607,6 +2608,7 @@ public:
         p1 = STACK[STACK.size() - 1];
         if (p1.type == PLT_NIL || (p1.type == PLT_BOOL && p1.i == 0))
         {
+          STACK.pop_back();
           break;
         }
         else

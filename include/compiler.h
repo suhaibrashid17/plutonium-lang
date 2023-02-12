@@ -27,8 +27,9 @@ private:
   short fileTOP;
   unordered_map<size_t,ByteSrc>* LineNumberTable;
   bool compileAllFuncs;
-  int32_t lastJIFNP = 0;
-
+  vector<size_t> andJMPS;
+  vector<size_t> orJMPS;
+  
 public:
   std::unordered_map<string,int32_t> globals;
   size_t bytes_done = 0;
@@ -529,6 +530,8 @@ public:
           bytes.insert(bytes.end(), a.begin(), a.end());
 
           bytes.push_back(JMPIFFALSENOPOP);
+          andJMPS.push_back(bytes_done);
+       //   printf("added andJMP at %ld\n",bytes_done);
           int32_t I = bytes.size();
           bytes.push_back(0);
           bytes.push_back(0);
@@ -537,11 +540,11 @@ public:
           bytes_done+=5;
           vector<uint8_t> b = exprByteCode(ast->childs[1]);
           bytes.insert(bytes.end(), b.begin(), b.end());
-          bytes.push_back(AND);
-          bytes_done += 1;
-          ByteSrc tmp = { fileTOP,line_num };
-          LineNumberTable->emplace(bytes_done - 1, tmp);
-          FOO.x = b.size()+1;
+        //  bytes.push_back(AND);
+        //  bytes_done += 1;
+         // ByteSrc tmp = { fileTOP,line_num };
+        //  LineNumberTable->emplace(bytes_done - 1, tmp);
+          FOO.x = b.size();
           bytes[I] = FOO.bytes[0];
           bytes[I+1] = FOO.bytes[1];        
           bytes[I+2] = FOO.bytes[2];
@@ -568,6 +571,7 @@ public:
           vector<uint8_t> a = exprByteCode(ast->childs[0]);
           bytes.insert(bytes.end(), a.begin(), a.end());
           bytes.push_back(NOPOPJMPIF);
+          orJMPS.push_back(bytes_done);
           int32_t I = bytes.size();
           bytes.push_back(0);
           bytes.push_back(0);
@@ -576,12 +580,8 @@ public:
           bytes_done+=5;
           vector<uint8_t> b = exprByteCode(ast->childs[1]);
           bytes.insert(bytes.end(), b.begin(), b.end());
-          bytes.push_back(OR);
-          
-          bytes_done += 1;
-          ByteSrc tmp = { fileTOP,line_num };
-          LineNumberTable->emplace(bytes_done - 1, tmp);
-          FOO.x = b.size()+1;
+
+          FOO.x = b.size();
           bytes[I] = FOO.bytes[0];
           bytes[I+1] = FOO.bytes[1];        
           bytes[I+2] = FOO.bytes[2];
@@ -2356,6 +2356,24 @@ public:
       return program;
 
   }
+  void reduceStackTo(int size)//for REPL
+  {
+    while((int)STACK_SIZE > size)
+    {
+      int lastidx = (int)STACK_SIZE-1;
+      int firstidx = (int)size;
+      for(auto it=globals.begin();it!=globals.end();)
+      {
+        if((*it).second>=firstidx  && (*it).second <= lastidx)
+        {
+          it = globals.erase(it);
+          STACK_SIZE-=1;
+        }
+        else
+          ++it;
+      }
+    }
+  }
   vector<uint8_t> compileProgram(Node* ast,int32_t argc,const char* argv[],vector<uint8_t> prev = {},bool compileNonRefFns = false,bool popGlobals = true)//compiles as a complete program adds NPOP_STACK and OP_EXIT
   {
     //If prev vector is empty then this program will be compiled as an independent new one
@@ -2365,6 +2383,8 @@ public:
     bytes_done = prev.size();
     compileAllFuncs = compileNonRefFns;
     line_num = 1;
+    andJMPS.clear();
+    orJMPS.clear();
     if(prev.size() == 0)
     {
       STACK_SIZE = 3;
@@ -2427,6 +2447,43 @@ public:
         printf("Plutonium encountered an internal error.\nError Code: 10\n");
        // printf("%ld   /  %ld  bytes done\n",bt,bytecode.size());
         exit(0);
+    }
+    //final phase
+    //optimize short circuit jumps for and 
+    for(auto e: andJMPS)
+    {
+      int offset;
+      memcpy(&offset,&bytecode[e+1],4);
+     // printf("offset = %d\n",offset);
+      int k = e+5+offset;
+    //  printf("k = %d  %d\n",k,bytecode[k] == JMPIFFALSENOPOP);
+      int newoffset;
+      while(k < bytes_done && bytecode[k] == JMPIFFALSENOPOP)
+      {
+        memcpy(&newoffset,&bytecode[k+1],4);
+        offset+=newoffset+5;
+        k = k+5+newoffset;
+      }
+      //printf("newoffset = %d\n",offset);
+      memcpy(&bytecode[e+1],&offset,4);
+    }
+    //optimize short circuit jumps for or
+    for(auto e: orJMPS)
+    {
+      int offset;
+      memcpy(&offset,&bytecode[e+1],4);
+     // printf("offset = %d\n",offset);
+      int k = e+5+offset;
+    //  printf("k = %d  %d\n",k,bytecode[k] == JMPIFFALSENOPOP);
+      int newoffset;
+      while(k < bytes_done && bytecode[k] == NOPOPJMPIF)
+      {
+        memcpy(&newoffset,&bytecode[k+1],4);
+        offset+=newoffset+5;
+        k = k+5+newoffset;
+      }
+      //printf("newoffset = %d\n",offset);
+      memcpy(&bytecode[e+1],&offset,4);
     }
     return bytecode;
   }

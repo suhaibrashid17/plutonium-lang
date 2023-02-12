@@ -215,7 +215,7 @@ inline PltObject PObjFromStrPtr(string* s)
   return ret;
 }
 
-inline PltObject PObjFromInt(int x)
+inline PltObject PObjFromInt(int32_t x)
 {
   PltObject ret;
   ret.type = 'i';
@@ -229,7 +229,7 @@ inline PltObject PObjFromDouble(double f)
   ret.f = f;
   return ret;
 }
-inline PltObject PObjFromInt64(long long int x)
+inline PltObject PObjFromInt64(int64_t x)
 {
   PltObject ret;
   ret.type = 'l';
@@ -243,7 +243,7 @@ inline PltObject PObjFromPtr(void* p)
   ret.ptr = p;
   return ret;
 }
-inline PltObject PObjFromByte(unsigned char x)
+inline PltObject PObjFromByte(uint8_t x)
 {
   PltObject ret;
   ret.type = 'm';
