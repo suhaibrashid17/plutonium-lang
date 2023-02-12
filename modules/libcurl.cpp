@@ -4,7 +4,7 @@ The original code of libcurl is not modified in anyway. This is just a wrapper a
 and requires libcurl libraries to be linked when compiling.
 Written by Shahryar Ahmad
 */
-#include <curl/curl.h>
+#include "curl/curl.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -113,6 +113,8 @@ PltObject init()
 PltObject curlklass__del__(PltObject* args,int n)//called by the VM so no typechecking required
 {
     KlassInstance* d = (KlassInstance*)args[0].ptr;
+    if(d->members[".handle"].type == 'n')
+      return nil;
     CurlObject* obj = (CurlObject*)(d->members)[".handle"].ptr;
     if(obj->postfields!=NULL)
       delete[] obj->postfields;
