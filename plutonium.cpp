@@ -109,8 +109,12 @@ void REPL()
   sources.push_back("");
   static std::unordered_map<size_t,ByteSrc> LineNumberTable;
   static size_t stackSize = 3;
+  static Compiler compiler;
   if(vm.STACK.size() > stackSize)
+  {
     vm.STACK.erase(vm.STACK.begin()+stackSize,vm.STACK.end());
+  }
+  compiler.reduceStackTo(stackSize);
   vector<string> fnReferenced;
   Lexer lex;
   string line;
@@ -120,7 +124,7 @@ void REPL()
   vector<Token> tokens;
   Node* ast;
   static Parser parser;
-  static Compiler compiler;
+
   initFunctions();
   initMethods();
   bool continued = false;
@@ -264,6 +268,7 @@ int main(int argc, const char* argv[])
         deleteAST(ast);
         tokens.clear();
     }
+    //WriteByteCode(bytecode,LineNumberTable,files);
     vm.load(bytecode,&LineNumberTable,&files,&sources);
     bytecode.clear();
     bytecode.shrink_to_fit();
