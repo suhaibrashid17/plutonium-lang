@@ -1206,7 +1206,7 @@ public:
           {
              if(tokens[1].type!=ID_TOKEN || tokens[1].content!="std" || tokens[2].type!=OP_TOKEN || tokens[2].content!="/" || tokens[3].type!=ID_TOKEN || tokens[4].type!=OP_TOKEN || tokens[4].content!="." || tokens[5].type!=ID_TOKEN || tokens[5].content!="plt")
                parseError("SyntaxError","Invalid Syntax");
-            #ifdef BUILD_FOR_WINDOWS
+            #ifdef _WIN32
             tokens[3].content="C:\\plutonium\\std\\"+tokens[3].content+".plt";
             #else
             tokens[3].content="/opt/plutonium/std/"+tokens[3].content+".plt";
