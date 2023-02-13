@@ -241,6 +241,39 @@ PltObject PRINTF(PltObject* args,int32_t argc)
     ret.type = 'n';
     return ret;
 }
+PltObject FORMAT(PltObject* args,int32_t argc)
+{
+    if(argc < 1)
+      return Plt_Err(ARGUMENT_ERROR,"At least one argument needed!");
+    if(args[0].type!='s')
+      return Plt_Err(TYPE_ERROR,"Argument 1 must be a string!");
+    string& format = *(string*)args[0].ptr;
+    int32_t k = 0;
+    int32_t l = format.length();
+    int32_t j = 1;
+    string* p = allocString();
+    while(k<l)
+    {
+        if(format[k] == '%')
+        {
+          if(k+1 < l && format[k+1] == '%')
+          {
+            *p+="%%";
+            k+=2;
+            continue;
+          }
+          if(j>=argc)
+            return Plt_Err(ARGUMENT_ERROR,"String format requires more arguments!");
+          *p += PltObjectToStr(args[j]);
+          j+=1;
+        }
+        else
+          *p+=format[k];
+        k+=1;
+    }
+
+    return PObjFromStrPtr(p);
+}
 PltObject fninfo(PltObject* args,int32_t argc) //for debugging purposes
 {
     if(argc!=1)
@@ -2083,6 +2116,8 @@ void initFunctions()
   funcs.emplace("addr",&ADDR);
   funcs.emplace("bytearray",&BYTEARRAY);
   funcs.emplace("moduleInfo",&moduleInfo);
+  funcs.emplace("format",&FORMAT);
+  
 
 }
 std::unordered_map<string,BuiltinFunc> methods;
