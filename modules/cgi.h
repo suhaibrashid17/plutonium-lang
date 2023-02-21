@@ -10,6 +10,6 @@ extern "C"
     //Functions
     PltObject FormData(PltObject*,int);//returns a dictionary containing all the data sent by client
     //handles GET,POST and multipart/form POST requests
-    
+    PltObject cookies(PltObject*,int);
 }
 #endif

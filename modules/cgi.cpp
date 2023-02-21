@@ -396,9 +396,10 @@ PltObject FormData(PltObject* args,int n)
     else
       return Plt_Err(VALUE_ERROR,"Unknown method "+(string)method);
 }
+PltObject nil;
 PltObject init()
 {
-    PltObject nil;//default constructor makes a nil object
+    nil.type = 'n';
     Module* d = vm_allocModule();
     CgiFile = vm_allocKlass();
     CgiFile->members[(string)"filename"]  = nil;
@@ -406,10 +407,32 @@ PltObject init()
     CgiFile->members[(string)"contentType"] = nil;
     CgiFile->name = "cgi.File";
     d->members.emplace("FormData",PObjFromMethod("cgi.FormData",&FormData,CgiFile));
+    d->members.emplace("cookies",PObjFromFunction("cgi.cookies",&cookies));
+    
     //Function FormData is not a member of CgiFile class but we want the class  not to be
     //garbage collected when FormData function object is reachable 
     d->members.emplace("File",PObjFromKlass(CgiFile));
     return PObjFromModule(d);
+}
+
+PltObject cookies(PltObject* args,int n)
+{
+  if(n!=0)
+    return Plt_Err(ARGUMENT_ERROR,"0 arguments needed!");
+  char* cookie = getenv("HTTP_COOKIE");
+  if(!cookie)
+    return Plt_Err(VALUE_ERROR,"No cookies!");
+  string data = cookie;
+  vector<string> parts = split(data,"; ");
+  Dictionary* dict = vm_allocDict();
+  for(auto e: parts)
+  {
+    vector<string> eq = split(e,"=");
+    if(eq.size()!=2)
+      return Plt_Err(VALUE_ERROR,"Bad or unsupported format");
+    dict->emplace(PObjFromStr(eq[0]),PObjFromStr(eq[1]));
+  }
+  return PObjFromDict(dict);
 }
 extern "C" void unload()
 {
