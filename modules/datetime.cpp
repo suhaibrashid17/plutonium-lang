@@ -1,3 +1,9 @@
+/*
+Datetime Module Plutonium
+Written by Shahryar Ahmad 
+5 March 2023
+The code is completely free to use and comes without any guarantee/warrantee
+*/
 #include "datetime.h"
 #include <time.h>
 using namespace std;
