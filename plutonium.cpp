@@ -1,3 +1,4 @@
+
 #include <signal.h>
 #include <time.h>
 #include <cstdint>
@@ -10,7 +11,7 @@ void signalHandler(int signum)
 {
   if(signum==SIGABRT || signum==SIGFPE || signum==SIGILL || signum==SIGSEGV)
   {
-    printf("Oops either the interpreter or one of the loaded modules just crashed.Please report this incident.\n");
+    fprintf(stderr,"Oops either the interpreter or one of the loaded modules just crashed.Please report this incident.\n");
     exit(0);
   }
 }
@@ -95,7 +96,31 @@ void WriteByteCode(vector<uint8_t>& bytecode,std::unordered_map<size_t,ByteSrc>&
     fclose(f);
     delete[] arr;
 }
-
+#ifdef PLUTONIUM_PROFILE
+void showProfileInfo()
+{
+  for(int i=1;i<=66;i+=1)
+  {
+    for(int j=0;j<66;j++)
+    {
+      if(vm.instCount[j] < vm.instCount[j+1])
+      {
+        int c = vm.instCount[j];
+        vm.instCount[j] = vm.instCount[j+1];
+        vm.instCount[j+1] = c;
+        const char* prev = opNames[j];
+        opNames[j] = opNames[j+1];
+        opNames[j+1] = prev;
+      }
+    }
+  }
+  printf("OPCODE  Count\n");
+  for(int i=0;i<67;i++)
+  {
+    printf("%s  %ld\n",opNames[i],vm.instCount[i]);
+  }
+}
+#endif
 void REPL()
 {
   REPL_MODE = true;
@@ -268,12 +293,13 @@ int main(int argc, const char* argv[])
         deleteAST(ast);
         tokens.clear();
     }
-    //WriteByteCode(bytecode,LineNumberTable,files);
+    WriteByteCode(bytecode,LineNumberTable,files);
     vm.load(bytecode,&LineNumberTable,&files,&sources);
     bytecode.clear();
     bytecode.shrink_to_fit();
     vm.interpret();
-
-
+    #ifdef PLUTONIUM_PROFILE
+     showProfileInfo();
+    #endif
     return 0;
 }
