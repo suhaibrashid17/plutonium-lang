@@ -171,7 +171,9 @@ public:
   PltObject *constants = NULL;
   int32_t total_constants = 0; // total constants stored in the array constants
   apiFuncions api;
-  
+  #ifdef PLUTONIUM_PROFILE
+  size_t instCount[67] = {0};
+  #endif
   void load(vector<uint8_t> b, std::unordered_map<size_t, ByteSrc> *ltable, vector<string> *a, vector<string> *c)
   {
     if (program)
@@ -230,8 +232,8 @@ public:
     string type = "UnknownError";
     if (e >= 1 && e <= 16)
       type = ErrNames[(int32_t)e - 1];
-    printf("\nFile %s\n", filename.c_str());
-    printf("%s at line %ld\n", type.c_str(), line_num);
+    fprintf(stderr,"\nFile %s\n", filename.c_str());
+    fprintf(stderr,"%s at line %ld\n", type.c_str(), line_num);
     auto it = std::find(files->begin(), files->end(), filename);
     size_t i = it - files->begin();
     string source_code = (*sources)[i];
@@ -249,18 +251,18 @@ public:
       if (k >= source_code.length())
         break;
     }
-    printf("%s\n", lstrip(line).c_str());
-    printf("%s\n", msg.c_str());
+    fprintf(stderr,"%s\n", lstrip(line).c_str());
+    fprintf(stderr,"%s\n", msg.c_str());
     
     if (callstack.size() != 0 && e != MAX_RECURSION_ERROR) // printing stack trace for max recursion is stupid
     {
-      printf("<stack trace>\n");
+      fprintf(stderr,"<stack trace>\n");
       while (callstack.size() != 0) // print stack trace
       {
         size_t L = callstack.back() - program;
         if(callstack.back() == NULL)
         {
-          printf("  --by Native Module\n");
+          fprintf(stderr,"  --by Native Module\n");
           break;
         }
         L -= 1;
@@ -269,7 +271,7 @@ public:
           L -= 1; // L is now the index of CALLUDF opcode now
         }
         // which is ofcourse present in the LineNumberTable
-        printf("  --by %s line %ld\n", (*files)[(*LineNumberTable)[L].fileIndex].c_str(), (*LineNumberTable)[L].ln);
+        fprintf(stderr,"  --by %s line %ld\n", (*files)[(*LineNumberTable)[L].fileIndex].c_str(), (*LineNumberTable)[L].ln);
         callstack.pop_back();
       }
     }
@@ -655,7 +657,7 @@ public:
     string s2;
     char c1;
     PltList pl1;      // plutonium list 1
-    PltList *pl_ptr1; // plutonium list pointer 1
+    PltList* pl_ptr1; // plutonium list pointer 1
     Dictionary pd1;
     Dictionary *pd_ptr1;
     k = program + offset;
@@ -664,7 +666,9 @@ public:
     while (*k != OP_EXIT)
     {
       inst = *k;
-     
+      #ifdef PLUTONIUM_PROFILE
+        instCount[inst-1]+=1;
+      #endif
       switch (inst)
       {
       case LOAD_GLOBAL:
@@ -717,6 +721,14 @@ public:
           continue;
         }
         break;
+      }
+      case LOAD_LOCAL:
+      {
+          k+=1;
+          memcpy(&i1, k, sizeof(int32_t));
+          k += 3;
+          STACK.push_back(STACK[frames.back() + i1]);
+          break;
       }
       case LOAD:
       {
@@ -772,13 +784,12 @@ public:
           STACK.push_back(a);
           DoThreshholdBusiness();
         }
-        else if (c1 == PLT_CLASS)
+        else if (c1 == 'v')
         {
           memcpy(&i1, k, sizeof(int32_t));
           k += 3;
           STACK.push_back(STACK[frames.back() + i1]);
         }
-
         break;
       }
       case LOAD_CONST:
@@ -1720,7 +1731,9 @@ public:
         STACK.pop_back();
         p1 = STACK[STACK.size() - 1];
         STACK.pop_back();
-        if (isNumeric(p1.type) && isNumeric(p2.type))
+        if(p1.type == p2.type)
+          c1 = p1.type;
+        else if (isNumeric(p1.type) && isNumeric(p2.type))
         {
           if (p1.type == PLT_FLOAT || p2.type == PLT_FLOAT)
             c1 = PLT_FLOAT;
@@ -1730,11 +1743,6 @@ public:
             c1 = PLT_INT;
           PromoteType(p1, c1);
           PromoteType(p2, c1);
-        }
-        else if (p1.type == PLT_OBJ)
-        {
-          if (invokeOperator("__smallerthan__", p1, 2, "<", &p2))
-            continue;
         }
         else
         {
@@ -1748,6 +1756,11 @@ public:
           p3.i = (bool)(p1.l < p2.l);
         else if (p1.type == PLT_FLOAT)
           p3.i = (bool)(p1.f < p2.f);
+        else if (p1.type == PLT_OBJ)
+        {
+          if (invokeOperator("__smallerthan__", p1, 2, "<", &p2))
+            continue;
+        }
         STACK.push_back(p3);
         break;
       }
@@ -1757,7 +1770,9 @@ public:
         STACK.pop_back();
         p1 = STACK[STACK.size() - 1];
         STACK.pop_back();
-        if (isNumeric(p1.type) && isNumeric(p2.type))
+        if(p1.type == p2.type)
+          c1=p1.type;
+        else if (isNumeric(p1.type) && isNumeric(p2.type))
         {
           if (p1.type == PLT_FLOAT || p2.type == PLT_FLOAT)
             c1 = PLT_FLOAT;
@@ -1767,11 +1782,6 @@ public:
             c1 = PLT_INT;
           PromoteType(p1, c1);
           PromoteType(p2, c1);
-        }
-        else if (p1.type == PLT_OBJ)
-        {
-          if (invokeOperator("__greaterthan__", p1, 2, ">", &p2))
-            continue;
         }
         else
         {
@@ -1786,6 +1796,11 @@ public:
           p3.i = (bool)(p1.l > p2.l);
         else if (p1.type == PLT_FLOAT)
           p3.i = (bool)(p1.f > p2.f);
+        else if (p1.type == PLT_OBJ)
+        {
+          if (invokeOperator("__greaterthan__", p1, 2, ">", &p2))
+            continue;
+        }
         STACK.push_back(p3);
         // exit(0);
         break;
@@ -1797,7 +1812,9 @@ public:
         STACK.pop_back();
         p1 = STACK[STACK.size() - 1];
         STACK.pop_back();
-        if (isNumeric(p1.type) && isNumeric(p2.type))
+        if(p1.type == p2.type)
+          c1 = p1.type;
+        else if (isNumeric(p1.type) && isNumeric(p2.type))
         {
           if (p1.type == PLT_FLOAT || p2.type == PLT_FLOAT)
             c1 = PLT_FLOAT;
@@ -1807,11 +1824,6 @@ public:
             c1 = PLT_INT;
           PromoteType(p1, c1);
           PromoteType(p2, c1);
-        }
-        else if (p1.type == PLT_OBJ)
-        {
-          if (invokeOperator("__smallerthaneq__", p1, 2, "<=", &p2))
-            continue;
         }
         else
         {
@@ -1825,6 +1837,11 @@ public:
           p3.i = (bool)(p1.l <= p2.l);
         else if (p1.type == PLT_FLOAT)
           p3.i = (bool)(p1.f <= p2.f);
+        else if (p1.type == PLT_OBJ)
+        {
+          if (invokeOperator("__smallerthaneq__", p1, 2, "<=", &p2))
+            continue;
+        }
         STACK.push_back(p3);
         break;
       }
@@ -1835,7 +1852,9 @@ public:
         STACK.pop_back();
         p1 = STACK[STACK.size() - 1];
         STACK.pop_back();
-        if (isNumeric(p1.type) && isNumeric(p2.type))
+        if(p1.type == p2.type)
+          c1 = p1.type;
+        else if (isNumeric(p1.type) && isNumeric(p2.type))
         {
           if (p1.type == PLT_FLOAT || p2.type == PLT_FLOAT)
             c1 = PLT_FLOAT;
@@ -1845,11 +1864,6 @@ public:
             c1 = PLT_INT;
           PromoteType(p1, c1);
           PromoteType(p2, c1);
-        }
-        else if (p1.type == PLT_OBJ)
-        {
-          if (invokeOperator("__greaterthaneq__", p1, 2, ">=", &p2))
-            continue;
         }
         else
         {
@@ -1863,6 +1877,11 @@ public:
           p3.i = (bool)(p1.l >= p2.l);
         else if (p1.type == PLT_FLOAT)
           p3.i = (bool)(p1.f >= p2.f);
+        else if (p1.type == PLT_OBJ)
+        {
+          if (invokeOperator("__greaterthaneq__", p1, 2, ">=", &p2))
+            continue;
+        }
         STACK.push_back(p3);
         // exit(0);
         break;
@@ -1894,6 +1913,7 @@ public:
         STACK.pop_back();
         if (a.type == PLT_OBJ)
         {
+          orgk = k-program;
           if (invokeOperator("__not__", a, 1, "!"))
             continue;
         }
@@ -1913,6 +1933,7 @@ public:
         STACK.pop_back();
         if (a.type == PLT_OBJ)
         {
+          orgk = k - program;
           if (invokeOperator("__neg__", a, 1, "-"))
             continue;
         }
@@ -3246,7 +3267,7 @@ public:
     } // end while loop
     if (STACK.size() != 0 && panic)
     {
-      printf("An InternalError occurred.Error Code: 15\n");
+      fprintf(stderr,"An InternalError occurred.Error Code: 15\n");
       exit(0);
     }
   } // end function interpret
@@ -3315,7 +3336,7 @@ PltList *allocList()
   PltList *p = new PltList;
   if (!p)
   {
-    printf("error allocating memory!\n");
+    fprintf(stderr,"allocList(): error allocating memory!\n");
     exit(0);
   }
   vm.allocated += sizeof(PltList);
@@ -3330,7 +3351,7 @@ vector<uint8_t>* allocByteArray()
   auto p = new vector<uint8_t>;
   if (!p)
   {
-    printf("error allocating memory!\n");
+    fprintf(stderr,"allocByteArray(): error allocating memory!\n");
     exit(0);
   }
   vm.allocated += sizeof(std::vector<uint8_t>);
@@ -3345,7 +3366,7 @@ ErrObject *allocErrObject()
   ErrObject *p = new ErrObject;
   if (!p)
   {
-    printf("error allocating memory!\n");
+    fprintf(stderr,"allocErrObject(): error allocating memory!\n");
     exit(0);
   }
   vm.allocated += sizeof(ErrObject);
@@ -3361,7 +3382,7 @@ string *allocString()
   string *p = new string;
   if (!p)
   {
-    printf("error allocating memory!\n");
+    fprintf(stderr,"allocString(): error allocating memory!\n");
     exit(0);
   }
   vm.allocated += sizeof(string);
@@ -3373,10 +3394,10 @@ string *allocString()
 }
 Klass *allocKlass()
 {
-  Klass *p = new Klass;
+  Klass* p = new Klass;
   if (!p)
   {
-    printf("error allocating memory!\n");
+    fprintf(stderr,"allocKlass(): error allocating memory!\n");
     exit(0);
   }
   vm.allocated += sizeof(Klass);
@@ -3391,7 +3412,7 @@ Module *allocModule()
   Module *p = new Module;
   if (!p)
   {
-    printf("error allocating memory!\n");
+    fprintf(stderr,"allocModule(): error allocating memory!\n");
     exit(0);
   }
   vm.allocated += sizeof(Module);
@@ -3406,7 +3427,7 @@ KlassInstance *allocKlassInstance()
   KlassInstance *p = new KlassInstance;
   if (!p)
   {
-    printf("error allocating memory!\n");
+    fprintf(stderr,"allocKlassInstance(): error allocating memory!\n");
     exit(0);
   }
   vm.allocated += sizeof(KlassInstance);
@@ -3421,7 +3442,7 @@ Coroutine *allocCoObj()//allocates coroutine object
   Coroutine *p = new Coroutine;
   if (!p)
   {
-    printf("error allocating memory!\n");
+    fprintf(stderr,"allocCoObj(): error allocating memory!\n");
     exit(0);
   }
   vm.allocated += sizeof(Coroutine);
@@ -3436,7 +3457,7 @@ FunObject *allocFunObject()
   FunObject *p = new FunObject;
   if (!p)
   {
-    printf("error allocating memory!\n");
+    fprintf(stderr,"allocFunObject(): error allocating memory!\n");
     exit(0);
   }
   p->klass = NULL;
@@ -3452,7 +3473,7 @@ FunObject* allocCoroutine() //coroutine can be represented by FunObject
   FunObject *p = new FunObject;
   if (!p)
   {
-    printf("error allocating memory!\n");
+    fprintf(stderr,"allocCoroutine(): error allocating memory!\n");
     exit(0);
   }
   p->klass = NULL;
@@ -3469,7 +3490,7 @@ FileObject *allocFileObject()
   FileObject *p = new FileObject;
   if (!p)
   {
-    printf("error allocating memory!\n");
+    fprintf(stderr,"allocFileObject(): error allocating memory!\n");
     exit(0);
   }
   vm.allocated += sizeof(PltList);
@@ -3484,7 +3505,7 @@ Dictionary *allocDict()
   Dictionary *p = new Dictionary;
   if (!p)
   {
-    printf("error allocating memory!\n");
+    fprintf(stderr,"allocDict(): error allocating memory!\n");
     exit(0);
   }
   vm.allocated += sizeof(Dictionary);
@@ -3499,7 +3520,7 @@ NativeFunction *allocNativeFun()
   NativeFunction *p = new NativeFunction;
   if (!p)
   {
-    printf("error allocating memory!\n");
+    fprintf(stderr,"allocNativeFun(): error allocating memory!\n");
     exit(0);
   }
   vm.allocated += sizeof(NativeFunction);

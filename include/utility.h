@@ -15,7 +15,7 @@ string IntToHex(int i)
         r = i%16;
         if(r<10)
         {
-          res+=std::string((int)r);
+          res+=str((int)r);
         }
         else
         {

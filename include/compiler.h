@@ -45,8 +45,8 @@ public:
   }
   void compileError(string type,string msg)
   {
-    printf("\nFile %s\n",filename.c_str());
-    printf("%s at line %ld\n",type.c_str(),line_num);
+    fprintf(stderr,"\nFile %s\n",filename.c_str());
+    fprintf(stderr,"%s at line %ld\n",type.c_str(),line_num);
     auto it = std::find(files->begin(),files->end(),filename);
     size_t i = it-files->begin();
     string& source_code = (*sources)[i];
@@ -65,8 +65,8 @@ public:
           break;
         }
     }
-    printf("%s\n",lstrip(line).c_str());
-    printf("%s\n",msg.c_str());
+    fprintf(stderr,"%s\n",lstrip(line).c_str());
+    fprintf(stderr,"%s\n",msg.c_str());
     if(REPL_MODE)
       REPL();
     exit(0);
@@ -234,13 +234,12 @@ public:
               FOO.x = resolveName(name,isGlobal);
               if(!isGlobal)
               {
-                bytes.push_back(LOAD);
-                bytes.push_back('v');
+                bytes.push_back(LOAD_LOCAL);
                 bytes.push_back(FOO.bytes[0]);
                 bytes.push_back(FOO.bytes[1]);
                 bytes.push_back(FOO.bytes[2]);
                 bytes.push_back(FOO.bytes[3]);
-                bytes_done+=6;
+                bytes_done+=5;
                 return bytes;
               }
               else
@@ -1235,7 +1234,7 @@ public:
               program.push_back(FOO.bytes[3]);//load loop control variable
               program.insert(program.end(),finalValue.begin(),finalValue.end());
               program.push_back(SMOREQ);
-  //            program.push_back(AND);
+
               ////
               vector<uint8_t> inc;
               line_num = lnCopy;

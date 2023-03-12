@@ -29,8 +29,8 @@ private:
   string source_code;
   void lexErr(string type,string msg)
   {
-    printf("\nFile %s\n",filename.c_str());
-    printf("%s at line %ld\n",type.c_str(),line_num);
+    fprintf(stderr,"\nFile %s\n",filename.c_str());
+    fprintf(stderr,"%s at line %ld\n",type.c_str(),line_num);
     size_t l = 1;
     string line = "";
     size_t k = 0;
@@ -48,8 +48,8 @@ private:
           break;
         }
     }
-    printf("%s\n",lstrip(line).c_str());
-    printf("%s\n",msg.c_str());
+    fprintf(stderr,"%s\n",lstrip(line).c_str());
+    fprintf(stderr,"%s\n",msg.c_str());
     if(REPL_MODE)
       REPL();
     exit(0);
