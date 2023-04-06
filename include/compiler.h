@@ -1362,7 +1362,7 @@ public:
               }
               else
                 fnIdx = index;
-              //Bytecode to calculate length of list we are looping from
+              //Bytecode to calculate length of list we are looping
               vector<uint8_t> LIST = exprByteCode(ast->childs[2]);
               program.insert(program.end(),LIST.begin(),LIST.end());
               int32_t ListStackIdx = STACK_SIZE;

@@ -1,5 +1,4 @@
 //These header contains some builtin functions which are embed into the interpreter
-//the prototype of these functions is different from the ones in the native modules
 
 #ifndef BUILTIN_FUNC_H_
 #define BUILTIN_FUNC_H_
@@ -984,8 +983,8 @@ PltObject SHUFFLE(PltObject* args,int32_t argc)
 		{
 			if(args[0].type=='j')
 			{
-			    PltList a = *(PltList*)args[0].ptr;
-				std::random_shuffle(a.begin(),a.end());
+			  PltList* a = (PltList*)args[0].ptr;
+				std::random_shuffle(a->begin(),a->end());
 				PltObject ret;
 				return ret;
 			}
@@ -999,30 +998,47 @@ PltObject SHUFFLE(PltObject* args,int32_t argc)
 }
 PltObject STR(PltObject* args,int32_t argc)
 {
-    	if(argc==1)
+    if(argc==1)
 		{
 			if(args[0].type=='i')
 			{
-                string* s = allocString();
-                *s = str(args[0].i);
-                return PObjFromStrPtr(s);
+        string* s = allocString();
+        *s = str(args[0].i);
+        return PObjFromStrPtr(s);
 			}
 			else if(args[0].type=='f')
 			{
-                string* s = allocString();
-                *s = str(args[0].f);
-                return PObjFromStrPtr(s);
+        string* s = allocString();
+        *s = str(args[0].f);
+        return PObjFromStrPtr(s);
 			}
-            else if(args[0].type=='l')
-            {
-                string* s = allocString();
-                *s = str(args[0].l);
-                return PObjFromStrPtr(s);
-            }
-            return Plt_Err(TYPE_ERROR,"Error str() takes a numeric argument!");
+      else if(args[0].type=='l')
+      {
+          string* s = allocString();
+          *s = str(args[0].l);
+          return PObjFromStrPtr(s);
+      }
+      else if(args[0].type == 'b')
+      {
+          string* s = allocString();
+          *s = (args[0].i) ? "true" : "false";
+          return PObjFromStrPtr(s);
+      }
+      else if(args[0].type == 'j')
+      {
+          string* s = allocString();
+          *s = PltObjectToStr(args[0]);
+          return PObjFromStrPtr(s);
+      }
+      else if(args[0].type == 'a')
+      {
+          string* s = allocString();
+          *s = PltObjectToStr(args[0]);
+          return PObjFromStrPtr(s);
+      }   
+      return Plt_Err(TYPE_ERROR,"Error str() unsupported for type "+fullform(args[0].type));
 		}
-        return Plt_Err(ARGUMENT_ERROR,"Error str() takes only one argument!");
-		exit(0);
+    return Plt_Err(ARGUMENT_ERROR,"Error str() takes only one argument!");
 }
 PltObject FIND(PltObject* args,int32_t argc)
 {
@@ -1084,10 +1100,15 @@ PltObject TOINT(PltObject* args,int32_t argc)
                ret.type = 'l';
                return ret;
 			}
-        return Plt_Err(TYPE_ERROR,"Error int32_t() unsupported for type "+fullform(args[0].type));
+      else if(args[0].type == 'm')
+      {
+        args[0].type = PLT_INT;
+        return args[0];
+      }
+        return Plt_Err(TYPE_ERROR,"Error int() unsupported for type "+fullform(args[0].type));
 		exit(0);
 		}
-		return Plt_Err(ARGUMENT_ERROR,"Error int32_t() takes exactly one argument!");
+		return Plt_Err(ARGUMENT_ERROR,"Error int() takes exactly one argument!");
 		exit(0);
 }
 PltObject TOFLOAT(PltObject* args,int32_t argc)
@@ -1107,8 +1128,17 @@ PltObject TOFLOAT(PltObject* args,int32_t argc)
                     return ret;
 
 			}
-        return Plt_Err(TYPE_ERROR,"Error float() takes a string argument!");
-		exit(0);
+      else if(args[0].type == 'i')
+      {
+        args[0].f = (double)args[0].i;
+        return args[0];
+      }
+      else if(args[0].type == 'l')
+      {
+        args[0].f = (double)args[0].l;
+        return args[0];
+      }
+      return Plt_Err(TYPE_ERROR,"Error float() unsupported for type "+fullform(args[0].type));
 		}
 		return Plt_Err(ARGUMENT_ERROR,"Error float() takes exactly one argument!");
 		exit(0);
@@ -1414,11 +1444,12 @@ PltObject FREAD(PltObject* args,int32_t argc)
     if(!fobj.open)
       return Plt_Err(VALUE_ERROR,"Error the file stream is closed!");
     FILE* currF = fobj.fp;
-    if(fread(&(p->at(0)),1,e,currF)!=(size_t)e)
+    long long int read = 0;
+    if((read = fread(&(p->at(0)),1,e,currF))!=(size_t)e)
         return Plt_Err(FILEIO_ERROR,"Error unable to read specified bytes from the file.");
     if(currF == stdin)
       clean_stdin();
-    return ret;
+    return PObjFromInt64(read);;
 }
 PltObject FWRITE(PltObject* args,int32_t argc)
 {
@@ -1452,14 +1483,14 @@ PltObject FWRITE(PltObject* args,int32_t argc)
     if(!fobj.open)
       return Plt_Err(VALUE_ERROR,"Error the file stream is closed!");
     FILE* currF = fobj.fp;
-    if(fwrite(&(l->at(0)),1,S,currF)!=(size_t)S)
+    int64_t written = 0;
+    if((written = fwrite(&(l->at(0)),1,S,currF))!=(size_t)S)
     {
         string what = strerror(errno);
         return Plt_Err(FILEIO_ERROR,"Error unable to write the bytes to file!");
 
     }
-    return ret;
-
+    return PObjFromInt64(written);
 }
 PltObject FSEEK(PltObject* args,int32_t argc)
 {
