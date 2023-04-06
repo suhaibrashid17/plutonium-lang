@@ -159,7 +159,7 @@ void REPL()
       printf(">>> ");
     else
       printf("... ");
-    continued=false;
+    //continued=false;
     line = readline();
     if(line=="exit" || line=="quit" || line=="baskardebhai" || line=="yawr")
       break;
@@ -188,6 +188,7 @@ void REPL()
       continued=true;
       continue;
     }
+    continued = false;
     parser.init(&fnReferenced,&noc,&files,&sources,filename);
     ast = parser.parse(tokens);
     PltObject* constants = new PltObject[noc];
@@ -293,7 +294,7 @@ int main(int argc, const char* argv[])
         deleteAST(ast);
         tokens.clear();
     }
-    WriteByteCode(bytecode,LineNumberTable,files);
+    //WriteByteCode(bytecode,LineNumberTable,files);
     vm.load(bytecode,&LineNumberTable,&files,&sources);
     bytecode.clear();
     bytecode.shrink_to_fit();
